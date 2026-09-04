@@ -1,6 +1,6 @@
 schema_version: 1
 profile_id: e072a1fb9c5c
-identified_at: '2026-09-04T19:45:09.110262+00:00'
+identified_at: '2026-09-04T23:50:24.956051+00:00'
 port_seen_on: /dev/cu.usbmodem1101
 identity:
   usb_vid:
@@ -12,6 +12,11 @@ identity:
   usb_serial_number:
     value: E0:72:A1:FB:9C:5C
     provenance: usb
+  usb_product:
+    value: USB JTAG/serial debug unit
+    provenance: usb
+    note: USB product string as announced in THIS mode. Board-level names appear in app mode; ROM download
+      mode usually reports just the chip.
   usb_interface:
     value: Espressif USB JTAG/serial debug unit
     provenance: usb
@@ -165,7 +170,7 @@ _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0
   esptool_dialect: hyphenated (5.x)
-  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788551106
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788565822
   flash_id_rc: 0
   flash_id_output: 'esptool v5.2.0
 
@@ -210,7 +215,8 @@ _diagnostics:
     Flash voltage set by eFuse: 3.3V
 
 
-    Hard resetting via RTS pin...'
+    Staying in bootloader.'
+  fixture_recorded: tests/fixtures/board1.txt
   partition_rc: 0
 board:
   read_baud_max:

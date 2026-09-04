@@ -21,4 +21,4 @@ Detected flash size: 8MB
 Flash type set in eFuse: quad (4 data lines)
 Flash voltage set by eFuse: 3.3V
 
-Hard resetting via RTS pin...
+Staying in bootloader.
