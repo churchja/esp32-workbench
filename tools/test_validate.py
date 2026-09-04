@@ -180,6 +180,108 @@ check("genuinely open item remains", "display" in fields, True)
 check("no prior profile -> new returned unchanged", merge_profile({}, NEW), NEW)
 check("None prior -> new returned unchanged", merge_profile(None, NEW), NEW)
 
+
+# ---------------------------------------------------------------------------
+# board identity: a failed probe must not orphan a second profile
+# ---------------------------------------------------------------------------
+print("\nboard identity and orphan adoption")
+
+from esp32ident import (normalize_mac, usb_serial_mac, profile_key,  # noqa: E402
+                        adopt_orphans)
+
+for raw, want in [
+    ("d4:f9:8d:66:13:64", "d4f98d661364"),   # QT Py S2, real
+    ("E0:72:A1:FB:9C:5C", "e072a1fb9c5c"),   # ESP32-S3, real
+    ("D4-F9-8D-66-13-64", "d4f98d661364"),   # dash separators
+    ("d4f98d661364",      "d4f98d661364"),   # already bare
+    ("0",                 None),  # REAL: the S2 reports this in download mode
+    ("",                  None),
+    (None,                None),
+    ("not-a-mac",         None),
+    ("d4:f9:8d:66:13",    None),  # 5 octets
+    ("60:55:f9:ff:fe:f7:2c:a2", None),  # 8-byte EUI64 is NOT a MAC
+]:
+    check(f"normalize_mac({raw!r})", normalize_mac(raw), want)
+
+# Key precedence. The USB-serial fallback is what stops a failed probe from
+# writing unknown-<hash>.yaml and a later good probe writing a SECOND file.
+check("eFuse MAC beats USB serial",
+      profile_key({"mac": {"value": "aa:bb:cc:dd:ee:ff"},
+                   "usb_serial_number": {"value": "11:22:33:44:55:66"}}),
+      "aabbccddeeff")
+check("USB serial used when no MAC probed",
+      profile_key({"usb_serial_number": {"value": "d4:f9:8d:66:13:64"}}),
+      "d4f98d661364")
+check("failed probe + junk serial falls back to a hash",
+      profile_key({"usb_serial_number": {"value": "0"}}).startswith("unknown-"),
+      True)
+check("a failed probe and a good probe of the SAME board agree on the key",
+      profile_key({"usb_serial_number": {"value": "d4:f9:8d:66:13:64"}}),
+      profile_key({"mac": {"value": "d4:f9:8d:66:13:64"},
+                   "usb_serial_number": {"value": "0"}}))
+
+# Adoption: narrow on purpose. Merging two different boards is worse than
+# leaving an orphan.
+import tempfile as _tf, os as _os, yaml as _yaml  # noqa: E402
+with _tf.TemporaryDirectory() as _d:
+    _yaml.safe_dump(
+        {"identity": {"usb_serial_number": {"value": "d4:f9:8d:66:13:64",
+                                            "provenance": "usb"}}},
+        open(_os.path.join(_d, "unknown-aaaa111122.yaml"), "w"))
+    _yaml.safe_dump(
+        {"identity": {"usb_serial_number": {"value": "11:22:33:44:55:66",
+                                            "provenance": "usb"}}},
+        open(_os.path.join(_d, "unknown-bbbb333344.yaml"), "w"))
+    _yaml.safe_dump({"identity": {}}, open(_os.path.join(_d, "d4f98d661364.yaml"), "w"))
+
+    got, paths = adopt_orphans(_d, "d4f98d661364", {})
+    check("adopts the matching orphan", len(got), 1)
+    check("names the right file",
+          _os.path.basename(paths[0]) if paths else None, "unknown-aaaa111122.yaml")
+    check("leaves a DIFFERENT board's orphan alone",
+          any("bbbb3333" in p for p in paths), False)
+    check("never touches a real MAC-keyed profile",
+          any("d4f98d661364.yaml" in p for p in paths), False)
+    check("no match -> nothing adopted", adopt_orphans(_d, "ffffffffffff", {})[0], [])
+    check("missing directory is safe",
+          adopt_orphans(_os.path.join(_d, "nope"), "d4f98d661364", {})[0], [])
+
+
+print("\nmerge: informative beats newer for mode-dependent USB fields")
+
+# A board's USB identity depends on which MODE it is in. Adopting an app-mode
+# profile into a ROM-mode probe must not downgrade these.
+APP_MODE = {"identity": {
+    "usb_product": {"value": "QT Py ESP32-S2", "provenance": "usb"},
+    "usb_serial_number": {"value": "d4:f9:8d:66:13:64", "provenance": "usb"},
+}}
+ROM_MODE = {"identity": {
+    "usb_product": {"value": "ESP32-S2", "provenance": "usb"},
+    "usb_serial_number": {"value": "0", "provenance": "usb"},
+    "mac": {"value": "d4:f9:8d:66:13:64", "provenance": "probed"},
+}}
+m = merge_profile(APP_MODE, ROM_MODE)
+check("board name survives a ROM-mode re-probe",
+      m["identity"]["usb_product"]["value"], "QT Py ESP32-S2")
+check("MAC-shaped serial is not replaced by '0'",
+      m["identity"]["usb_serial_number"]["value"], "d4:f9:8d:66:13:64")
+check("probed MAC still wins as an identity",
+      m["identity"]["mac"]["provenance"], "probed")
+
+# ...but a genuinely better new value must still win.
+m2 = merge_profile(
+    {"identity": {"usb_product": {"value": "ESP32-S2", "provenance": "usb"}}},
+    {"identity": {"usb_product": {"value": "QT Py ESP32-S2", "provenance": "usb"}}})
+check("a MORE specific new product string is kept",
+      m2["identity"]["usb_product"]["value"], "QT Py ESP32-S2")
+
+m3 = merge_profile(
+    {"identity": {"usb_serial_number": {"value": "0", "provenance": "usb"}}},
+    {"identity": {"usb_serial_number": {"value": "d4:f9:8d:66:13:64",
+                                        "provenance": "usb"}}})
+check("a newly-seen MAC-shaped serial is kept",
+      m3["identity"]["usb_serial_number"]["value"], "d4:f9:8d:66:13:64")
+
 print()
 if FAIL:
     print(f"{len(FAIL)} FAILURE(S): {', '.join(FAIL)}")

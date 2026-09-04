@@ -1,0 +1,24 @@
+esptool v5.2.0
+Serial port /dev/cu.usbmodem01:
+Connecting...
+Detecting chip type... ESP32-S2
+Connected to ESP32-S2 on /dev/cu.usbmodem01:
+Chip type:          ESP32-S2FNR2 (revision v0.0)
+Features:           Wi-Fi, Single Core, 240MHz, Embedded Flash 4MB, Embedded PSRAM 2MB, ADC and temperature sensor calibration in BLK2 of eFuse V1
+Crystal frequency:  40MHz
+USB mode:           USB-OTG
+MAC:                d4:f9:8d:66:13:64
+
+Uploading stub flasher...
+Running stub flasher...
+Stub flasher running.
+
+Flash Memory Information:
+=========================
+Manufacturer: 20
+Device: 4016
+Detected flash size: 4MB
+Flash type set in eFuse: quad (4 data lines)
+Flash voltage set by a strapping pin: 3.3V
+
+Staying in bootloader.

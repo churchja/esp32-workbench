@@ -187,15 +187,21 @@ with tempfile.TemporaryDirectory() as _td:
                      env={"ESP32_WORKBENCH_ROOT": "/nonexistent-on-purpose"})
     finally:
         os.chdir(_cwd)
-check("no abort when the override is bad", r["aborted"], [])
 check("warns that the override was unusable",
       "does not contain" in r["out"], True)
-# NOTE: do NOT assert on what the gate says AFTER the warning here.
-# _find_root falls through to the real repo, so with a board attached the gate
-# legitimately proceeds, probes it, and reports its verified backup. An earlier
-# version asserted "verified backup" was absent -- which passed only while no
-# hardware was connected. A test whose result depends on whether a board
-# happens to be plugged in is testing the room, not the code.
+# The ONLY environment-independent claim at this layer is that the warning
+# fires. Everything after it depends on the room:
+#
+#   _find_root falls through to the real repo (the module's own location is
+#   inside it), so the gate proceeds to probe whatever board is attached. If
+#   that board has a verified backup it allows; if it does not, it correctly
+#   ABORTS. Both are right, and which one happens is decided by hardware.
+#
+# Two assertions have already been deleted from here for exactly that reason:
+# one asserting no "verified backup" text (passed only with nothing plugged
+# in), and one asserting no abort (passed only when the attached board
+# happened to have a backup). Do not add a third. The genuinely-not-found
+# path is covered below, where the module anchor is neutralised.
 
 # _find_root also anchors on the extension's OWN location, so a project copied
 # out of templates/ still finds the workbench regardless of cwd. That is

@@ -181,6 +181,20 @@ def identify_usb(port):
     if port.get("serial_number"):
         out["usb_serial_number"] = fact(port["serial_number"], "usb")
 
+    # The raw product string, kept separate from usb_interface (which is OUR
+    # interpretation of VID/PID). It matters because a board's USB identity is
+    # MODE-dependent: an Adafruit QT Py ESP32-S2 announces "QT Py ESP32-S2" in
+    # app mode and "ESP32-S2" in ROM download mode. The app-mode string names
+    # the BOARD and is the best search key for a schematic or BSP; the ROM-mode
+    # one only restates the chip. Recording it under its own key means a
+    # re-probe in the other mode cannot silently overwrite the better value.
+    product = port.get("product") or port.get("description")
+    if product and str(product).lower() not in ("n/a", "none"):
+        out["usb_product"] = fact(str(product), "usb", note=(
+            "USB product string as announced in THIS mode. Board-level names "
+            "appear in app mode; ROM download mode usually reports just the "
+            "chip."))
+
     entry = USB_IDS.get((vid, pid))
     if entry:
         name, kind, prov = entry
@@ -249,27 +263,71 @@ class Esptool:
         """Translate a canonical hyphenated subcommand to this esptool's dialect."""
         return name if self.hyphenated else name.replace("-", "_")
 
-    def run(self, port, subcmd, *args, timeout=180, chip="auto", baud=None):
+    def run(self, port, subcmd, *args, timeout=180, chip="auto", baud=None,
+            after=None):
         """
         baud: esptool defaults to 115200 (~11.5 KB/s), which makes a full 8MB
         read take ~12 minutes. Measured on an ESP32-S3 over native USB. Pass a
         higher rate for bulk transfers; --baud is a GLOBAL option and must
         precede the subcommand.
+
+        after: esptool defaults to --after hard-reset, which resets the chip
+        when the operation finishes. That is fatal to multi-stage probing on a
+        native-USB board that needed MANUAL bootloader entry (hold BOOT, tap
+        RESET): the reset leaves download mode, the app firmware boots, USB
+        re-enumerates under a different VID/PID on a different port path, and
+        every later stage fails with "Could not configure port".
+
+        Observed on an Adafruit QT Py ESP32-S2: stage 2 succeeded on
+        /dev/cu.usbmodem01, stage 3 failed, and the board had reappeared as
+        /dev/cu.usbmodem1101 (239a:8111 instead of 303a:0002). Pass
+        after="no-reset" for every probe stage so one manual bootloader entry
+        covers the whole pipeline.
         """
         if not self.exe:
             return 127, "", "esptool not found on PATH"
         argv = [self.exe, "--chip", chip, "--port", port]
         if baud:
             argv += ["--baud", str(baud)]
+        if after:
+            argv += ["--after", str(after)]
         argv += [self.cmd(subcmd), *[str(a) for a in args]]
-        try:
-            p = subprocess.run(argv, capture_output=True, text=True,
-                               timeout=timeout)
-            return p.returncode, p.stdout, p.stderr
-        except subprocess.TimeoutExpired:
-            return 124, "", f"timeout after {timeout}s running: {' '.join(argv)}"
-        except Exception as e:  # noqa: BLE001
-            return 1, "", f"{type(e).__name__}: {e}"
+        # Sequential esptool invocations contend for the same USB CDC endpoint.
+        # macOS does not release the handle instantly, so a stage that starts
+        # immediately after the previous one can fail before it ever talks to
+        # the chip. Observed on an Adafruit QT Py ESP32-S2, two flavours of the
+        # same thing:
+        #     Errno 6  "Device not configured"
+        #     Errno 16 "port is busy or doesn't exist"
+        # Both are the OS, not the board. Retry with a short settle rather than
+        # special-casing errno values; a chip that genuinely will not answer
+        # fails all attempts and costs a couple of seconds.
+        last = (1, "", "")
+        for attempt in range(3):
+            try:
+                pr = subprocess.run(argv, capture_output=True, text=True,
+                                    timeout=timeout)
+                out = (pr.stdout or "") + (pr.stderr or "")
+                if pr.returncode == 0 or not self._port_not_ready(out):
+                    return pr.returncode, pr.stdout, pr.stderr
+                last = (pr.returncode, pr.stdout, pr.stderr)
+            except subprocess.TimeoutExpired:
+                return 124, "", f"timeout after {timeout}s running: {' '.join(argv)}"
+            except Exception as e:  # noqa: BLE001
+                return 1, "", f"{type(e).__name__}: {e}"
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+        return last
+
+    @staticmethod
+    def _port_not_ready(output):
+        low = (output or "").lower()
+        return any(m in low for m in (
+            "device not configured",
+            "port is busy",
+            "could not open",
+            "could not configure port",
+        ))
 
 
 # --------------------------------------------------------------------------
@@ -387,7 +445,7 @@ def parse_chip_banner(blob):
 def probe_silicon(esp, port):
     """Stage 2+3: one connection; parsing is delegated to parse_chip_banner."""
     diag = {}
-    rc, so, se = esp.run(port, "flash-id", timeout=120)
+    rc, so, se = esp.run(port, "flash-id", timeout=120, after="no-reset")
     blob = so + se
     diag["flash_id_rc"] = rc
     diag["flash_id_output"] = blob.strip()[-4000:]
@@ -470,7 +528,8 @@ def probe_partitions(esp, port, workdir):
     out, diag = {}, {}
     dest = os.path.join(workdir, "partition-table.bin")
     rc, so, se = esp.run(port, "read-flash", hex(PART_TABLE_OFFSET),
-                         hex(PART_TABLE_SIZE), dest, timeout=180)
+                         hex(PART_TABLE_SIZE), dest, timeout=180,
+                         after="no-reset")
     diag["partition_rc"] = rc
     if rc != 0 or not os.path.exists(dest):
         diag["partition_error"] = (so + se).strip()[-800:]
@@ -526,7 +585,7 @@ def probe_app(esp, port, workdir, partitions):
     for p in app_parts[:4]:
         dest = os.path.join(workdir, f"app-head-{p['label']}.bin")
         rc, so, se = esp.run(port, "read-flash", p["offset"], "0x1000",
-                             dest, timeout=180)
+                             dest, timeout=180, after="no-reset")
         if rc != 0 or not os.path.exists(dest):
             diag[f"app_{p['label']}_error"] = (so + se).strip()[-400:]
             continue
@@ -547,13 +606,84 @@ def probe_app(esp, port, workdir, partitions):
 # Profile assembly
 # --------------------------------------------------------------------------
 
+MAC_HEX_RE = re.compile(r"^[0-9a-f]{12}$")
+
+
+def normalize_mac(text):
+    """
+    Reduce a MAC-ish string to 12 lowercase hex chars, or None.
+
+    Must REJECT, not merely tidy. Real data from an Adafruit QT Py ESP32-S2:
+    in app mode its USB serial is 'd4:f9:8d:66:13:64' (the eFuse MAC), but in
+    ROM download mode the same board reports serial '0'. A normalizer that
+    accepted anything non-empty would key a profile on "0".
+    """
+    if not text:
+        return None
+    n = re.sub(r"[^0-9a-fA-F]", "", str(text)).lower()
+    return n if MAC_HEX_RE.match(n) else None
+
+
+def usb_serial_mac(merged):
+    """
+    A MAC-shaped USB serial number, if this board publishes one.
+
+    Verified on two boards: the USB serial string equals the eFuse MAC exactly
+    (ESP32-S3 E0:72:A1:FB:9C:5C, QT Py S2 d4:f9:8d:66:13:64). Vendors commonly
+    do this, but it is a descriptor the firmware chose to publish -- NOT a
+    value read from eFuse -- so anything derived from it is `inferred`.
+    """
+    return normalize_mac(merged.get("usb_serial_number", {}).get("value"))
+
+
 def profile_key(merged):
-    mac = merged.get("mac", {}).get("value")
+    """
+    Stable per-board filename key.
+
+    Order matters: eFuse MAC, then a MAC-shaped USB serial, then a content
+    hash. The middle step exists because a probe that cannot reach the chip
+    still reads the USB descriptor -- without it, a failed probe writes
+    `unknown-<hash>.yaml` and a later successful probe writes a SECOND file
+    under the real MAC, leaving two profiles for one board that nothing can
+    reconcile.
+    """
+    mac = normalize_mac(merged.get("mac", {}).get("value"))
     if mac:
-        return mac.replace(":", "").lower()
+        return mac
+    from_usb = usb_serial_mac(merged)
+    if from_usb:
+        return from_usb
     return "unknown-" + hashlib.sha1(
         json.dumps(merged, sort_keys=True, default=str).encode()
     ).hexdigest()[:10]
+
+
+def adopt_orphans(boards_dir, key, merged):
+    """
+    Find `unknown-*.yaml` profiles that are actually THIS board and absorb them.
+
+    Matches only on an exact normalized USB-serial equality with this board's
+    key -- deliberately narrow, because wrongly merging two boards' profiles is
+    worse than leaving an orphan. Returns (adopted_profiles, paths).
+    """
+    adopted, paths = [], []
+    if not os.path.isdir(boards_dir):
+        return adopted, paths
+    for name in sorted(os.listdir(boards_dir)):
+        if not (name.startswith("unknown-") and name.endswith(".yaml")):
+            continue
+        path = os.path.join(boards_dir, name)
+        try:
+            with open(path) as fh:
+                prof = yaml.safe_load(fh) or {}
+        except Exception:  # noqa: BLE001
+            continue
+        ident = prof.get("identity") or {}
+        if usb_serial_mac(ident) == key or normalize_mac(
+                (ident.get("mac") or {}).get("value")) == key:
+            adopted.append(prof)
+            paths.append(path)
+    return adopted, paths
 
 
 # Sections that hold facts probing CANNOT produce. A re-probe must never
@@ -591,6 +721,25 @@ def merge_profile(old, new):
     for k, v in old_id.items():
         if k not in new_id:
             new_id[k] = v
+
+    # "Newer wins" is wrong for a few USB fields, because a re-probe may simply
+    # be seeing the board in a DIFFERENT MODE rather than seeing it better.
+    #
+    # Observed: adopting a QT Py ESP32-S2's app-mode profile into its ROM-mode
+    # profile replaced product "QT Py ESP32-S2" with "ESP32-S2", and replaced a
+    # MAC-shaped serial with "0". Both trades lost information.
+    old_serial = normalize_mac((old_id.get("usb_serial_number") or {}).get("value"))
+    new_serial = normalize_mac((new_id.get("usb_serial_number") or {}).get("value"))
+    if old_serial and not new_serial:
+        new_id["usb_serial_number"] = old_id["usb_serial_number"]
+
+    # Keep the longer/more specific product string; a board name is strictly
+    # more useful than a chip name for finding a schematic.
+    op = (old_id.get("usb_product") or {}).get("value")
+    np = (new_id.get("usb_product") or {}).get("value")
+    if op and (not np or len(str(op)) > len(str(np))):
+        new_id["usb_product"] = old_id["usb_product"]
+
     merged["identity"] = new_id
 
     # Keep the research queue's resolved state rather than resurrecting items.
@@ -611,6 +760,21 @@ def build_profile(port, sections, diag):
     merged = {}
     for s in sections:
         merged.update(s)
+
+    # If probing could not reach the chip but the board publishes a MAC-shaped
+    # USB serial, record it -- as `inferred`, never `probed`. It keys the
+    # profile so a later successful probe lands on the SAME file.
+    if "mac" not in merged:
+        from_usb = usb_serial_mac(merged)
+        if from_usb:
+            merged["mac"] = fact(
+                ":".join(from_usb[i:i + 2] for i in range(0, 12, 2)),
+                "inferred",
+                note=("Taken from the USB serial-number descriptor, NOT read "
+                      "from eFuse -- the chip could not be reached. Vendors "
+                      "commonly publish the MAC there and it matched exactly "
+                      "on two boards, but treat it as a strong hint until a "
+                      "successful probe upgrades it to 'probed'."))
 
     # The IDF target is derivable, so derive it rather than asking for it.
     fam = merged.get("chip_family", {}).get("value")
@@ -850,9 +1014,29 @@ def main():
                               default_flow_style=False, width=100)
     print(text)
 
+    if "_probe_error" not in sil:
+        print("# board left in download mode (probe stages use --after "
+              "no-reset so one manual BOOT+RESET covers all of them); "
+              "tap RESET to run its firmware again", file=sys.stderr)
+
     if args.save:
         os.makedirs(BOARDS_DIR, exist_ok=True)
         path = os.path.join(BOARDS_DIR, f"{profile['profile_id']}.yaml")
+
+        # A failed probe may already have written unknown-<hash>.yaml for this
+        # same board. Absorb it rather than leaving two files for one board.
+        orphans, orphan_paths = adopt_orphans(BOARDS_DIR,
+                                              profile["profile_id"],
+                                              profile.get("identity", {}))
+        for orphan, opath in zip(orphans, orphan_paths):
+            profile = merge_profile(orphan, profile)
+            # Back up before removing. An earlier version deleted outright and
+            # lost the app-mode product string permanently.
+            obak = opath + f".{int(time.time())}.bak"
+            os.rename(opath, obak)
+            print(f"# adopted orphan {os.path.basename(opath)} "
+                  f"(same board: USB serial matched this MAC) and removed it",
+                  file=sys.stderr)
         if os.path.exists(path):
             with open(path) as fh:
                 existing = fh.read()
