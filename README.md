@@ -121,22 +121,40 @@ Every claim below was produced by running against the board, not by reading a
 datasheet. Values are lifted from `boards/*.yaml`, so they cannot drift from
 what the tools actually recorded.
 
-| | ESP32-S3 devkit | Adafruit QT Py ESP32-S2 | CH340 board |
-|---|---|---|---|
-| Chip (probed) | `ESP32-S3 (QFN56) (revision v0.2)` | `ESP32-S2FNR2 (revision v0.0)` | `ESP8266EX` |
-| `idf.py set-target` | `esp32s3` | `esp32s2` | **none** — not an IDF target |
-| Flash | 8MB, quad | 4MB embedded, quad | 4MB |
-| PSRAM | 8MB (AP_3v3) | 2MB embedded | none |
-| Radios | Wi-Fi, BT 5 (LE) | Wi-Fi only | Wi-Fi only |
-| Cores | Dual + LP core, 240MHz | Single, 240MHz | Single, 160MHz |
-| USB peripheral | `USB-Serial/JTAG` | `USB-OTG` | **none** — CH340 bridge |
-| USB product string | not captured | `QT Py ESP32-S2` | `USB2.0-Serial` |
-| Partitions read | 4 | 6 | **0** — no such table |
-| **Max read baud** (`verified`) | **230400** | **460800** | **230400** |
-| Backup | ✅ | ✅ | ✅ |
-| Flash · restore | ✅ | ✅ | restore ✅ *(byte-exact)* |
-| Console over USB | ✅ | ✅ via `idf-usb-console` | n/a — UART *is* the console |
-| Profile | `e072a1fb9c5c` | `d4f98d661364` | `bcddc2246e97` |
+| | ESP32-S3 devkit | QT Py ESP32-S2 **A** | QT Py ESP32-S2 **B** | CH340 board |
+|---|---|---|---|---|
+| Chip (probed) | `ESP32-S3 (QFN56) (revision v0.2)` | `ESP32-S2FNR2 (revision v0.0)` | `ESP32-S2FNR2 (revision v0.0)` | `ESP8266EX` |
+| `idf.py set-target` | `esp32s3` | `esp32s2` | `esp32s2` | **none** |
+| Flash | 8MB, quad | 4MB embedded | 4MB embedded | 4MB |
+| PSRAM | 8MB (AP_3v3) | 2MB embedded | 2MB embedded | none |
+| Radios | Wi-Fi, BT 5 (LE) | Wi-Fi only | Wi-Fi only | Wi-Fi only |
+| Cores | Dual + LP, 240MHz | Single, 240MHz | Single, 240MHz | Single, 160MHz |
+| USB peripheral | `USB-Serial/JTAG` | `USB-OTG` | `USB-OTG` | **none** — bridge |
+| USB product string | not captured | `QT Py ESP32-S2` | `QT Py ESP32-S2` | `USB2.0-Serial` |
+| Partitions read | 4 | 6 | 6 | **0** |
+| **Max read baud** | **230400** | **460800** | **460800** | **230400** |
+| Backup | ✅ | ✅ | ✅ | ✅ |
+| Flash · restore | ✅ | ✅ | ✅ | restore ✅ |
+| Console over USB | ✅ | ✅ via `idf-usb-console` | ✅ same | n/a — UART |
+| Profile | `e072a1fb9c5c` | `d4f98d661364` | `d4f98d66124a` | `bcddc2246e97` |
+
+**Columns A and B are the same model, and every row above is identical.** Same
+product string, same VID/PID, same chip, same partition layout, same factory
+images with the same build dates. The only thing distinguishing them is the
+eFuse MAC — `d4:f9:8d:66:13:64` against `d4:f9:8d:66:12:4a`.
+
+That is the collision the MAC-keyed design exists to prevent, and until a second
+QT Py appeared it had never been tested: every earlier board was a different
+model. They landed on separate profiles, so board A kept its backup manifest and
+its `verified` read ceiling instead of being silently overwritten. Anything keyed
+on what a person would call "the board" would have merged them.
+
+Three mechanisms had to cooperate, each verified in passing: the USB-serial
+fallback keyed B's first (failed) probe correctly and its derived MAC later
+matched eFuse exactly; `adopt_orphans` did **not** fire, because it matches only
+on exact normalized-serial equality — two boards differing in the last three
+octets are precisely what a looser rule would have collapsed; and `mac` upgraded
+`inferred` → `probed` in place on B's successful probe.
 
 Note the baud row. Across **four** boards the ceiling tracks the **USB
 interface**, not the individual board:
