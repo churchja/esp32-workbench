@@ -263,10 +263,13 @@ def report_board_state(after, port):
              f"can use it directly. Tap RESET to run its firmware again. Do not "
              f"leave it parked indefinitely; a resident stub can drop USB.")
     else:
-        info(f"Board was RESET and is running its firmware again. On a "
-             f"native-USB part it re-enumerates, so {port} may no longer exist "
-             f"-- re-check with tools/usbwatch.py --once before the next "
-             f"command, or use --after no-reset to keep it parked.")
+        info(f"Board was RESET and is running its firmware again.")
+        info(f"  If the SoC provides USB itself (S2/S3/C3/C6/C5/H2/P4), it "
+             f"re-enumerates and {port} may no longer exist -- re-check with "
+             f"tools/usbwatch.py --once, or use --after no-reset to keep it "
+             f"parked in download mode.")
+        info(f"  Behind a UART bridge (CH340/CP210x/FTDI) the port is stable: "
+             f"the bridge stays enumerated regardless of what the SoC does.")
 
 
 def cmd_backup(esp, args):

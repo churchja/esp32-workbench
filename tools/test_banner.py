@@ -151,7 +151,17 @@ else:
         check(f"{name}: MAC is exactly 6 octets",
               len((v(d, "mac") or "").split(":")), 6)
         check(f"{name}: flash size read", bool(v(d, "flash_size")), True)
-        check(f"{name}: flash mode read", bool(v(d, "flash_mode")), True)
+        # flash_mode / flash_voltage are ESP32-family fields. An ESP8266 banner
+        # has neither, so demanding them universally was wrong -- that
+        # assertion was written when the only fixture was an ESP32-S3.
+        # Assert presence iff the source says so: tests extraction AND that we
+        # do not fabricate a field the chip never reported.
+        raw = open(f).read()
+        for field, marker in (("flash_mode", "Flash type set in eFuse"),
+                              ("flash_voltage", "Flash voltage set by eFuse")):
+            expected = marker in raw
+            check(f"{name}: {field} {'read' if expected else 'correctly absent'}",
+                  bool(v(d, field)), expected)
 
 
 # ---------------------------------------------------------------------------

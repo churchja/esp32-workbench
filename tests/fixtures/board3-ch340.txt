@@ -1,0 +1,21 @@
+esptool v5.2.0
+Serial port /dev/cu.usbserial-110:
+Connecting....
+Detecting chip type... ESP8266
+Connected to ESP8266 on /dev/cu.usbserial-110:
+Chip type:          ESP8266EX
+Features:           Wi-Fi, 160MHz
+Crystal frequency:  26MHz
+MAC:                bc:dd:c2:24:6e:97
+
+Uploading stub flasher...
+Running stub flasher...
+Stub flasher running.
+
+Flash Memory Information:
+=========================
+Manufacturer: ef
+Device: 4016
+Detected flash size: 4MB
+
+Staying in bootloader.

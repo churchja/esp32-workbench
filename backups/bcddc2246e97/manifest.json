@@ -1,0 +1,16 @@
+{
+  "mac": "bc:dd:c2:24:6e:97",
+  "backups": [
+    {
+      "file": "full-20260904T223142Z-4194304.bin",
+      "sha256": "bbebdbc41654b130948b3195f3f5b06779bd6a59c43670cd2449794138af4941",
+      "bytes": 4194304,
+      "created": "2026-09-04T22:35:04.904476+00:00",
+      "chip": "ESP8266EX",
+      "read_seconds": 202.4,
+      "baud": 230400,
+      "esptool_version": "5.2.0"
+    }
+  ],
+  "chip": "ESP8266EX"
+}

@@ -1,0 +1,149 @@
+schema_version: 1
+profile_id: bcddc2246e97
+identified_at: '2026-09-04T22:30:19.842988+00:00'
+port_seen_on: /dev/cu.usbserial-110
+identity:
+  usb_vid:
+    value: '0x1a86'
+    provenance: usb
+  usb_pid:
+    value: '0x7523'
+    provenance: usb
+  usb_product:
+    value: USB2.0-Serial
+    provenance: usb
+    note: USB product string as announced in THIS mode. Board-level names appear in app mode; ROM download
+      mode usually reports just the chip.
+  usb_interface:
+    value: CH340/CH341 USB-UART bridge
+    provenance: usb
+  usb_interface_kind:
+    value: bridge
+    provenance: usb
+    note: native = the SoC implements USB directly (supports USB-JTAG debug, USB CDC console, and can
+      re-enumerate after reset). bridge = a separate UART chip; the SoC has no USB peripheral.
+  usb_vendor:
+    value: QinHeng (bridge vendor, not board vendor)
+    provenance: usb
+  chip:
+    value: ESP8266EX
+    provenance: probed
+  chip_family:
+    value: ESP8266EX
+    provenance: probed
+  chip_features:
+    value:
+    - Wi-Fi
+    - 160MHz
+    provenance: probed
+    note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
+      of the vendor listing.
+  crystal:
+    value: 26MHz
+    provenance: probed
+  mac:
+    value: bc:dd:c2:24:6e:97
+    provenance: probed
+    note: Base MAC from eFuse (read from the 'MAC' line) -- globally unique per board. Used as the profile
+      and backup key so two boards of the same model never collide.
+  flash_manufacturer_id:
+    value: '0xef'
+    provenance: probed
+  flash_device_id:
+    value: '0x4016'
+    provenance: probed
+  flash_size:
+    value: 4MB
+    provenance: probed
+    note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
+      wrong about this.
+  idf_target:
+    value: null
+    provenance: unverified
+    note: '''ESP8266EX'' normalises to ''esp8266ex'', which matches no ESP-IDF target. Target list baked-in
+      list from ESP-IDF v6.0.3 ($IDF_PATH not exported)'
+pinmap: {}
+peripherals: {}
+research_queue:
+- field: display
+  status: unknown
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Vendor schematic for the ESP8266EX board carrying this display. Then check for an existing BSP
+    component -- search the ESP Component Registry (components.espressif.com) for the board name, and
+    espressif/esp-bsp, which already encodes panel type, offsets and pins for many vendor boards. Confirm
+    the controller part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+- field: pinmap
+  status: unknown
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+- field: power
+  status: unknown
+  why: Battery connector, charge IC, and ADC divider ratio are board-level.
+  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
+    corrupts every battery reading.
+_diagnostics:
+  esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
+  esptool_version: 5.2.0
+  esptool_dialect: hyphenated (5.x)
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788561015
+  flash_id_rc: 0
+  flash_id_output: 'esptool v5.2.0
+
+    Serial port /dev/cu.usbserial-110:
+
+    Connecting....
+
+    Detecting chip type... ESP8266
+
+    Connected to ESP8266 on /dev/cu.usbserial-110:
+
+    Chip type:          ESP8266EX
+
+    Features:           Wi-Fi, 160MHz
+
+    Crystal frequency:  26MHz
+
+    MAC:                bc:dd:c2:24:6e:97
+
+
+    Uploading stub flasher...
+
+    Running stub flasher...
+
+    Stub flasher running.
+
+
+    Flash Memory Information:
+
+    =========================
+
+    Manufacturer: ef
+
+    Device: 4016
+
+    Detected flash size: 4MB
+
+
+    Staying in bootloader.'
+  fixture_recorded: tests/fixtures/board3-ch340.txt
+  partition_rc: 0
+  partition_error: no valid partition entries (magic 0x50AA absent)
+board:
+  read_baud_max:
+    value: 230400
+    provenance: verified
+    note: 'Physical test via the backup ladder: 460800 failed with serial corruption, 230400 completed
+      4MB in 202s. Same ceiling as the ESP32-S3 but for a different reason -- this is a CH340 UART bridge,
+      where the nominal baud is a real line rate. 202s measured vs 182s predicted by the 10-bits-per-byte
+      model (11% over), unlike USB-OTG which ran far faster than the model.'
+verification_log:
+- date: '2026-09-04'
+  tested: board.read_baud_max
+  method: Full 4MB esptool read-flash via the backup baud ladder.
+  result: verified
+  note: 'Third board, third data point: S2 (USB-OTG) 460800, S3 (USB-Serial/JTAG) 230400, this (CH340
+    bridge) 230400. Two native boards disagree, so the ceiling is per-board, not per-interface.'

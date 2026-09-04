@@ -108,6 +108,13 @@ def say(after):
 hard, stay = say("hard-reset"), say("no-reset")
 check("hard-reset warns the port may vanish", "may no longer exist" in hard, True)
 check("hard-reset names the escape hatch", "--after no-reset" in hard, True)
+# Written while debugging two native-USB boards, and wrong for the very next
+# board type tested: a CH340 bridge keeps its port across a reset, because the
+# bridge chip stays enumerated regardless of what the SoC does.
+check("hard-reset does not assume native USB",
+      "bridge" in hard.lower(), True)
+check("hard-reset states the bridge case is stable",
+      "stable" in hard.lower(), True)
 check("no-reset says the board is parked", "DOWNLOAD MODE" in stay, True)
 check("no-reset warns against leaving it parked", "drop USB" in stay, True)
 check("both name the port", "/dev/cu.usbmodem01" in hard and
