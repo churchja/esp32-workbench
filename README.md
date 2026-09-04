@@ -105,49 +105,79 @@ what the tools actually recorded.
 
 | | ESP32-S3 devkit | Adafruit QT Py ESP32-S2 |
 |---|---|---|
-| Chip (probed) | `ESP32-S3 (QFN56)` rev v0.2 | `ESP32-S2FNR2` rev v0.0 |
+| Chip (probed) | `ESP32-S3 (QFN56) (revision v0.2)` | `ESP32-S2FNR2 (revision v0.0)` |
 | `idf.py set-target` | `esp32s3` | `esp32s2` |
 | Flash | 8MB, quad | 4MB embedded, quad |
 | PSRAM | 8MB (AP_3v3) | 2MB embedded |
 | Radios | Wi-Fi, BT 5 (LE) | Wi-Fi only |
 | Cores | Dual + LP core, 240MHz | Single, 240MHz |
-| USB | USB-Serial/JTAG | USB-OTG |
+| USB peripheral | `USB-Serial/JTAG` | `USB-OTG` |
+| USB product string | not captured | `QT Py ESP32-S2` |
 | Partitions read | 4 | 6 |
+| **Max read baud** (`verified`) | **230400** | **460800** |
+| Backup · flash · restore | ✅ | ✅ |
+| Console over USB | ✅ | ❌ *(see below)* |
 | Profile | `boards/e072a1fb9c5c.yaml` | `boards/d4f98d661364.yaml` |
+
+Note the baud row. The S2 reads reliably at **twice** the S3's ceiling, and the
+S3 fails reproducibly at the rate the S2 handles fine. Read speed is a property
+of the individual board — its USB peripheral, cable and host path together —
+not of the chip family or of esptool. No fixed default is right for both: 115200
+makes the S2 four times slower than necessary, 460800 makes S3 backups *fail*.
+That is why `esp32flash.py` negotiates a ladder instead of taking a constant.
 
 **The S3 proved the happy path.** Identify, back up (8MB), flash different
 firmware, run it, restore — and the restored image is **byte-identical** by
-SHA-256 across all 8,388,608 bytes. It also established
-`board.read_baud_max: 230400` by physical test, the repo's first `verified`
-fact: 256KB reads succeeded at 115200 and 230400, and failed reproducibly at
-460800 and 921600.
+SHA-256 across all 8,388,608 bytes. It also established the repo's first
+`verified` fact by physical test: 256KB reads succeeded at 115200 and 230400,
+and failed reproducibly at 460800 and 921600.
 
 **The S2 proved the failure paths**, and was worth more. It carries `tinyuf2`
 alongside an Arduino app plus a FAT partition, so USB is claimed by application
-firmware and esptool cannot auto-enter the bootloader. Four bugs only it could
+firmware and esptool often cannot auto-enter the bootloader. Bugs only it could
 find:
 
 - a probe that fails still reads USB, so `profile_key()` hashed and orphaned a
   second profile for one board
-- `--after hard-reset` ended every stage by resetting, consuming the single
-  manual BOOT+RESET the pipeline depended on
+- `--after hard-reset` ended every probe stage by resetting, consuming the
+  single manual BOOT+RESET the pipeline depended on
+- the same default in `backup` re-enumerated the board mid-workflow, so the
+  `idf.py flash` that followed opened a port that no longer existed
 - back-to-back esptool calls contended for the USB CDC endpoint
+- a failed probe **downgraded** a `probed` MAC to `inferred`, because the merge
+  only filled in absent fields — a guess overwriting a measurement
 - its USB identity is **mode-dependent** — `239a:8111` "QT Py ESP32-S2" under
   tinyuf2, `303a:0002` "ESP32-S2" under the ROM bootloader *or* an app using
   native CDC, which are indistinguishable from the descriptor alone
 
+Its restore was verified **by region**, which a whole-image hash could not do:
+bootloader, partition table, `ota_0`, `ota_1`, `uf2` and `ffat` all
+byte-identical; 50 bytes of 4,194,304 differ, all inside `nvs`, written by
+tinyuf2 when the restored firmware booted. A whole-image SHA-256 answers "did
+the write land" but cannot separate "restore failed" from "board booted and did
+its job". Comparing against the probed partition table can — a concrete reason
+the profile carries the layout and not just the sizes.
+
 Both boards independently confirmed that the USB serial-number descriptor
 equals the eFuse MAC (`E0:72:A1:FB:9C:5C`, `d4:f9:8d:66:13:64`). That is what
-`profile_key()` now falls back to — recorded as `inferred`, never `probed`,
-because two-for-two is a strong hint and not a measurement.
+`profile_key()` falls back to when a probe cannot reach the chip — recorded as
+`inferred`, never `probed`, because two-for-two is a strong hint and not a
+measurement.
 
 ### Not validated
 
+- **Console over USB on USB-OTG parts (ESP32-S2).** Two attempts, both flashed
+  and hash-verified on real hardware, both produced a board that runs correctly
+  and presents **no USB device at all**: the stock template, and
+  `CONFIG_ESP_CONSOLE_USB_CDC=y`. Parts with a USB-Serial/JTAG controller get a
+  secondary console for free; the S2 has no such controller. See
+  `templates/idf-base/examples/README.md` for the analysis and the next thing
+  to try. Recovery is BOOT+RESET, never a reflash — the board is not bricked,
+  it is invisible.
 - **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
   first is an 8-byte EUI64; an early parser truncated it into a wrong 6-byte
   identity, and identity is the backup key. Neither board has an EUI64. Closing
   this needs a C6, C5, or H2.
-- **`restore` on the S2** — only exercised on the S3.
 - **Boards behind a UART bridge** (CH340/CP210x/FTDI). Both boards here are
   native USB; the bridge path in `identify_usb()` is untested against hardware.
 
