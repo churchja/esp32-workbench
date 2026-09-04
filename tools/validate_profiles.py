@@ -111,6 +111,60 @@ def validate(path):
     return errors, warnings
 
 
+# Fields esp32ident emits UNCONDITIONALLY on a successful probe. Absence means
+# the profile predates the field, not that the chip lacks it.
+#
+#   idf_target   build_profile() derives it from chip_family for every chip,
+#                emitting None with provenance 'unverified' when nothing matches
+#                (an ESP8266 does this). The KEY is always present.
+#   usb_product  identify_usb() records the descriptor string whenever the port
+#                reports one, which in practice is always.
+ALWAYS_EMITTED = ("idf_target", "usb_product")
+
+# Absence here is a FACT ABOUT THE CHIP and must never read as staleness.
+# Flagging these would fire forever on hardware that simply does not report
+# them, which trains you to ignore the check.
+#
+#   flash_mode / flash_voltage  ESP32-family eFuse lines. The S3 emits both,
+#                               the S2 only mode, the ESP8266 neither.
+#   usb_mode                    esptool prints it only for parts with a USB
+#                               peripheral; absent behind a UART bridge.
+CHIP_DEPENDENT = ("flash_mode", "flash_voltage", "usb_mode", "crystal",
+                  "chip_revision")
+
+
+def profile_state(prof):
+    """
+    Return (state, detail).
+
+      current     nothing a re-probe would add
+      incomplete  the chip was never reached -- mac is inferred, no partitions.
+                  A successful re-probe would upgrade provenance and fill in
+                  partitions and applications.
+      stale       predates a field the tool now always emits
+
+    `incomplete` outranks `stale`: re-probing an unreached board fixes both.
+    """
+    ident = prof.get("identity") or {}
+    if not ident:
+        return "incomplete", "no identity recorded"
+
+    mac = ident.get("mac") or {}
+    reached = mac.get("provenance") == "probed" or "partitions" in ident
+    if not reached:
+        why = []
+        if mac.get("provenance") and mac["provenance"] != "probed":
+            why.append(f"mac is '{mac['provenance']}', not probed")
+        if "partitions" not in ident:
+            why.append("no partition table")
+        return "incomplete", "; ".join(why) or "chip never reached"
+
+    missing = [k for k in ALWAYS_EMITTED if k not in ident]
+    if missing:
+        return "stale", "missing " + ", ".join(missing)
+    return "current", ""
+
+
 def open_research(paths):
     """Collect unresolved research_queue entries so something consumes them."""
     out = {}
@@ -135,6 +189,8 @@ def main():
     ap.add_argument("--quiet", action="store_true", help="errors only")
     ap.add_argument("--todo", action="store_true",
                     help="list unresolved research items across all profiles")
+    ap.add_argument("--stale", action="store_true",
+                    help="report which profiles a re-probe would improve")
     args = ap.parse_args()
 
     paths = args.paths or sorted(glob.glob(os.path.join(REPO, "boards", "*.yaml")))
@@ -152,6 +208,35 @@ def main():
     # research_queue is written by esp32ident.py. Until this existed nothing
     # read it, which made it a reminder-to-do-X rather than a work list --
     # a representation of the action substituted for the action.
+    if args.stale:
+        import yaml as _y
+        rows, worth = [], 0
+        for path in paths:
+            name = os.path.basename(path)
+            if name.startswith("_"):
+                continue
+            try:
+                prof = _y.safe_load(open(path)) or {}
+            except Exception as e:  # noqa: BLE001
+                rows.append(("unreadable", name, str(e)[:50])); continue
+            state, detail = profile_state(prof)
+            rows.append((state, name, detail))
+            worth += state in ("stale", "incomplete")
+        width = max((len(n) for _s, n, _d in rows), default=10)
+        for state, name, detail in sorted(rows):
+            print(f"  {state:<11} {name:<{width}}  {detail}")
+        print()
+        if worth:
+            print(f"{worth} profile(s) a re-probe would improve.")
+            print("  stale      -> re-probe adds fields the tool now always emits")
+            print("  incomplete -> chip was never reached; BOOT+RESET, then re-probe")
+        else:
+            print("All profiles are current. A re-probe would add nothing.")
+            print("Chip-dependent absences (%s) are\n"
+                  "facts about the hardware, not gaps."
+                  % ", ".join(CHIP_DEPENDENT))
+        return 1 if worth else 0
+
     todos = open_research(paths)
     if args.todo:
         if not todos:

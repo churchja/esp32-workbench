@@ -64,10 +64,10 @@ automatically when you work in this repo.
 | `tools/esp32flash.py` | Backup / restore / flash / erase, behind the write gate |
 | `tools/esp32dump.py` | Partition dump, SPIFFS/LittleFS extraction, NVS parse, forensics |
 | `tools/gate.py` | The backup-gate decision, as a pure testable function |
-| `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research |
+| `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 301 assertions across 8 files; no hardware needed |
+| `tools/test_*.py` | 312 assertions across 8 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |

@@ -320,6 +320,53 @@ m4 = merge_profile(
 check("equal provenance keeps the newer value",
       m4["identity"]["y"]["value"], "new")
 
+
+print("\nprofile staleness: current / stale / incomplete")
+
+from validate_profiles import profile_state, ALWAYS_EMITTED, CHIP_DEPENDENT  # noqa: E402
+
+def prof(**ident):
+    base = {"mac": {"value": "aa:bb:cc:dd:ee:ff", "provenance": "probed"},
+            "chip_family": {"value": "ESP32-S3", "provenance": "probed"},
+            "idf_target": {"value": "esp32s3", "provenance": "inferred"},
+            "usb_product": {"value": "thing", "provenance": "usb"},
+            "partitions": {"value": [{"label": "nvs"}], "provenance": "probed"}}
+    base.update(ident)
+    return {"identity": base}
+
+check("a complete profile is current", profile_state(prof())[0], "current")
+
+for f in ALWAYS_EMITTED:
+    p2 = prof(); p2["identity"].pop(f)
+    st, why = profile_state(p2)
+    check(f"missing {f} -> stale", st, "stale")
+    check(f"and says which field: {f}", f in why, True)
+
+# The negative case that keeps the check from crying wolf. These absences are
+# facts about the chip -- an ESP8266 reports none of them -- and flagging them
+# would fire forever on hardware that simply does not have them.
+p2 = prof()
+for f in CHIP_DEPENDENT:
+    p2["identity"].pop(f, None)
+check("chip-dependent absences are NOT stale", profile_state(p2)[0], "current")
+
+# A probe that never reached the chip is a different problem with a different
+# fix (BOOT+RESET, then re-probe), so it gets its own state.
+p2 = prof(mac={"value": "aa:bb", "provenance": "inferred"})
+p2["identity"].pop("partitions")
+st, why = profile_state(p2)
+check("chip never reached -> incomplete", st, "incomplete")
+check("and explains why", "not probed" in why, True)
+
+# Precedence: re-probing an unreached board fixes both, so incomplete wins.
+p2 = prof(mac={"value": "aa:bb", "provenance": "inferred"})
+p2["identity"].pop("partitions"); p2["identity"].pop("usb_product")
+check("incomplete outranks stale", profile_state(p2)[0], "incomplete")
+
+check("empty identity is incomplete", profile_state({"identity": {}})[0], "incomplete")
+check("a probed mac alone is enough to count as reached",
+      profile_state(prof())[0], "current")
+
 print()
 if FAIL:
     print(f"{len(FAIL)} FAILURE(S): {', '.join(FAIL)}")
