@@ -106,19 +106,30 @@ def check_esptool():
                 if real not in seen_real:
                     seen_real.add(real)
                     found.append(cand)
-    if len(found) > 1:
-        vers = []
-        for o in found:
-            _rc, o3 = run([o, "version"], timeout=30)
-            mm = re.search(r"v?(\d+\.\d+(?:\.\d+)?)", o3)
-            vers.append(f"{os.path.basename(o)} {mm.group(1) if mm else '?'} "
-                        f"[{os.path.dirname(o)}]")
+    # Group by (directory, version). `esptool` and `esptool.py` are two
+    # entrypoints of ONE package -- separate files, so realpath dedupe keeps
+    # both, but warning about them is a false positive that trains you to
+    # ignore the check. A real conflict means different versions, or the same
+    # version from different installs.
+    groups, vers = {}, {}
+    for o in found:
+        _rc, o3 = run([o, "version"], timeout=30)
+        mm = re.search(r"v?(\d+\.\d+(?:\.\d+)?)", o3)
+        v = mm.group(1) if mm else "?"
+        vers[o] = v
+        groups.setdefault((os.path.dirname(o), v), []).append(os.path.basename(o))
+
+    if len(groups) > 1:
+        desc = "; ".join(f"{v} [{d}] ({', '.join(sorted(n))})"
+                         for (d, v), n in sorted(groups.items()))
         report(WARN, "esptool:conflict",
-               f"{len(found)} distinct installs on PATH -- " + "; ".join(vers),
+               f"{len(groups)} distinct installs on PATH -- " + desc,
                f"'{exe}' wins in this shell. ESP-IDF prepends its own bundled "
                f"copy; re-run doctor inside an IDF shell to see which wins there.")
     else:
-        report(OK, "esptool:conflict", "single install on PATH")
+        (d, v), names = next(iter(groups.items())) if groups else (("", "?"), [])
+        extra = f" ({len(names)} entrypoints)" if len(names) > 1 else ""
+        report(OK, "esptool:conflict", f"one install: {v} [{d}]{extra}")
 
     # Does OUR detector agree with what we just observed independently?
     try:

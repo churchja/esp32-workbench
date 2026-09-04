@@ -40,6 +40,14 @@ Do not route around it by calling `esptool write-flash` directly. A $20 board is
 cheap, but the vendor's factory firmware is often the only existing copy of a
 working driver for that exact display, and it is not redistributed anywhere.
 
+**`espefuse` is the one that cannot be undone, and nothing here guards it.**
+The gate refuses `idf.py efuse-burn` and demands `ESP32_EFUSE_I_UNDERSTAND=1`,
+but `espefuse burn_efuse ...` invoked directly bypasses every check in this
+repo. There is no backup to fall back on: a burned fuse is a permanent physical
+change to the silicon. Do not run it to "see what happens", and never on a
+board you cannot replace. If you genuinely need it, go through
+`idf.py efuse-burn` so at least one deliberate gate stands between you and it.
+
 Caveat worth knowing: a project copied **outside** this repo cannot find the
 gate and will print `BACKUP GATE INACTIVE` before proceeding unguarded. That is
 deliberate -- it announces its own absence rather than silently implying safety.
