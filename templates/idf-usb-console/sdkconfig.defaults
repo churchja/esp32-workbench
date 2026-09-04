@@ -1,0 +1,9 @@
+CONFIG_ESP_TASK_WDT_INIT=n
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Required. tinyusb_cdc_acm.h has a hard #error guard:
+#   #if (CONFIG_TINYUSB_CDC_ENABLED != 1)
+#   #error "TinyUSB CDC driver must be enabled in menuconfig"
+# The symbol lives in a "Communication Device Class (CDC)" submenu of the
+# component's Kconfig, which is why it is not obvious from a flat grep.
+CONFIG_TINYUSB_CDC_ENABLED=y

@@ -21,34 +21,15 @@ Two settings here are not guessable and are the usual reason a board misbehaves:
 Add a file here only after the configuration has actually run on hardware. A
 fragment that has merely compiled belongs in a comment, not in this directory.
 
-## Open problem: console on USB-OTG parts (ESP32-S2)
+## Console on USB-OTG parts (ESP32-S2) — solved elsewhere
 
-There is deliberately **no S2 example here**, because none has worked.
+There is deliberately no S2 example in this directory, because the fix is not a
+config fragment. Parts with a USB-Serial/JTAG controller get a secondary console
+for free and the base template is readable unchanged. The ESP32-S2 has only
+USB-OTG, and no `sdkconfig.defaults` alone makes it work — two were tried on
+hardware and both produced a board that ran correctly and presented no USB
+device at all.
 
-Parts with a USB-Serial/JTAG controller (S3, C3, C6, C5, H2, P4) get
-`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` automatically, so the stock
-template is readable over USB with no changes. Verified on the S3.
-
-The ESP32-S2 has no such controller — `soc_caps.h` declares only
-`SOC_USB_OTG_SUPPORTED`. Two attempts, both flashed and hash-verified on real
-hardware (MAC `d4f98d661364`), both produced a board that **runs correctly and
-presents no USB device at all**:
-
-1. Stock template. No secondary console exists for OTG, so output went to UART
-   pins and USB was never initialised.
-2. `CONFIG_ESP_CONSOLE_USB_CDC=y`. Still nothing, after a watchdog reset *and*
-   after a clean power cycle.
-
-The likely reason is in IDF's own Kconfig help for that option: *"uses the CDC
-driver in the chip ROM... incompatible with TinyUSB stack."* The OTG peripheral
-must be driven by a device stack to enumerate at all. The ROM CDC console works
-while the ROM bootloader already holds USB open; it does not bring USB up from
-a cold boot into an application. The stock firmware on this board enumerates
-because tinyuf2 and CircuitPython both ship TinyUSB.
-
-**If you need console on an S2, the next thing to try is the `esp_tinyusb`
-component rather than the ROM CDC option** — untested here.
-
-Recovery either way: hold BOOT, tap RESET to reach ROM download mode, then
-restore the backup. The board is never bricked by this; it is running fine and
-simply invisible.
+The OTG peripheral has to be driven by a device stack. See
+**`templates/idf-usb-console/`**, which does that with `espressif/esp_tinyusb`
+and is verified on hardware.

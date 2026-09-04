@@ -117,7 +117,7 @@ what the tools actually recorded.
 | **Max read baud** (`verified`) | **230400** | **460800** | **230400** |
 | Backup | ✅ | ✅ | ✅ |
 | Flash · restore | ✅ | ✅ | restore ✅ *(byte-exact)* |
-| Console over USB | ✅ | ❌ *(see below)* | n/a — UART *is* the console |
+| Console over USB | ✅ | ✅ via `idf-usb-console` | n/a — UART *is* the console |
 | Profile | `e072a1fb9c5c` | `d4f98d661364` | `bcddc2246e97` |
 
 Note the baud row: **460800, 230400, 230400** across three boards. The S2 reads
@@ -196,23 +196,42 @@ generic string, naming neither the board nor the SoC, unlike the S2's
 > and restore target, not a build target.
 
 `restore` was exercised and verified **byte-exact**: 4,194,304 bytes read back
-after the write hashed identically to the backup. Notably cleaner than the
-ESP32-S2, whose restore left 50 bytes differing in `nvs` because tinyuf2 wrote
-its state on boot. This board reboots after a restore too and comes back
-identical, so whatever it runs does not write flash at startup — which
-retroactively confirms the S2's delta was firmware doing its job, not a restore
-defect.
+after the write hashed identically to the backup.
+
+Across three restores the picture is consistent, and the S2's delta is a
+*reproducible signature* rather than an explanation:
+
+| Board | Result |
+|---|---|
+| ESP8266 | bit-identical — its firmware writes nothing to flash on boot |
+| ESP32-S2, restore #1 | 50 bytes, all in `nvs` |
+| ESP32-S2, restore #2 | **50 bytes, all in `nvs`** — same count, same region |
+
+Two independent restores of the same board producing an identical delta rules
+out write error, which would be arbitrary. It is tinyuf2 initialising the same
+NVS keys on every boot. A whole-image SHA-256 reports only "mismatch"; the
+region breakdown shows bootloader, both app slots, `uf2` and `ffat` all
+byte-perfect with movement confined to the partition designed to be written —
+which is the argument for the profile carrying the partition layout.
+
+**Console over USB on the S2 took a third approach.** Parts with a
+USB-Serial/JTAG controller (S3/C3/C6/C5/H2/P4) get a secondary console for free
+and `templates/idf-base` is readable over USB unchanged. The S2 has only
+USB-OTG, and two approaches failed on hardware — the stock template, and
+`CONFIG_ESP_CONSOLE_USB_CDC=y` — each flashed and hash-verified, each producing
+a board that ran correctly and presented **no USB device at all**.
+
+`templates/idf-usb-console` solves it with `espressif/esp_tinyusb`, which drives
+the OTG peripheral itself. Verified on the QT Py: enumerated as `303a:4001` and
+printed its self-report over CDC.
+
+It is a **sibling** of `idf-base`, deliberately not a change to it. `idf-base`
+drives no peripheral at all, which is what makes it safe on a board whose pin
+map is unverified; a USB device stack is a peripheral. Keeping them separate
+preserves that guarantee for every other board.
 
 ### Not validated
 
-- **Console over USB on USB-OTG parts (ESP32-S2).** Two attempts, both flashed
-  and hash-verified on real hardware, both produced a board that runs correctly
-  and presents **no USB device at all**: the stock template, and
-  `CONFIG_ESP_CONSOLE_USB_CDC=y`. Parts with a USB-Serial/JTAG controller get a
-  secondary console for free; the S2 has no such controller. See
-  `templates/idf-base/examples/README.md` for the analysis and the next thing
-  to try. Recovery is BOOT+RESET, never a reflash — the board is not bricked,
-  it is invisible.
 - **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
   first is an 8-byte EUI64; an early parser truncated it into a wrong 6-byte
   identity, and identity is the backup key. Neither board has an EUI64. Closing
