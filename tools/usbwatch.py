@@ -72,6 +72,24 @@ def describe(p):
             f"{vendor + ' VID' if vendor else 'unknown VID'} -- not in the table")
 
 
+def new_usb_devices(baseline, current):
+    """
+    USB devices in `current` that were not in `baseline`.
+
+    This is what --wait must trigger on. Two earlier versions got it wrong by
+    asking a weaker question:
+
+      v1: "is any device present?"      -> fired on Bluetooth/paired-audio ports
+      v2: "is any USB device present?"  -> fired on a board already plugged in
+
+    Both reported success for the wrong reason. The question is not whether a
+    device exists, it is whether one ARRIVED. Non-USB ports are excluded
+    because a board always has a USB identity.
+    """
+    return {dev: p for dev, p in current.items()
+            if dev not in baseline and p.vid is not None}
+
+
 def snapshot(include_all):
     out = {}
     for p in list_ports.comports():
@@ -135,8 +153,14 @@ def main():
 
     if args.once:
         return 0 if usb_only(cur) else 1
-    if args.wait and usb_only(cur):
-        return 0
+
+    # --wait triggers on ARRIVAL, not on presence. Anything already attached is
+    # the baseline and is deliberately ignored.
+    baseline = dict(cur)
+    if args.wait and usb_only(baseline):
+        already = ", ".join(sorted(usb_only(baseline)))
+        print(f"  {stamp()} baseline (ignored by --wait): {already}")
+        print(f"  {stamp()} waiting for a NEW device to arrive...")
 
     print(f"  {stamp()} watching (Ctrl-C to stop)...")
     start = time.time()
@@ -144,11 +168,12 @@ def main():
         while True:
             time.sleep(args.interval)
             new = snapshot(args.all)
+            arrived = new_usb_devices(baseline, new)
             for dev, p in new.items():
                 if dev not in cur:
                     show(p, "+ ")
-                    if args.wait and p.vid is not None:
-                        return 0
+            if args.wait and arrived:
+                return 0
             for dev, p in cur.items():
                 if dev not in new:
                     print(f"  {stamp()} - {dev}  gone")
