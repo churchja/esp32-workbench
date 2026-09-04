@@ -67,7 +67,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 249 assertions across 7 files; no hardware needed |
+| `tools/test_*.py` | 296 assertions across 8 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
