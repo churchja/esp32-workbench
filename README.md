@@ -1,5 +1,14 @@
 # esp32-workbench
 
+[![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v6.0.3-informational)](.idf-version)
+[![hardware validated](https://img.shields.io/badge/hardware%20validated-ESP32--S3%20%7C%20ESP32--S2-success)](#validated-hardware)
+[![tests](https://img.shields.io/badge/tests-no%20CI%2C%20run%20.%2Fsmoke.sh-lightgrey)](#is-it-working)
+
+<sub>No "build passing" badge: there is no CI on this repo, so such a badge
+would assert something nothing checks. Run <code>./smoke.sh</code> — it tells
+you the truth about your machine, which a static image cannot.</sub>
+
+
 Identify, read, back up, and program any ESP32-family board over USB — without
 destroying what was already on it.
 
@@ -87,6 +96,60 @@ invention.
 exist at compile time. Recoverable: the flash image, partition layout, unpacked
 filesystem contents, NVS key/values, and build fingerprints — project name, IDF
 version, toolchain, build host paths, embedded URLs. Not the source.
+
+## Validated hardware
+
+Every claim below was produced by running against the board, not by reading a
+datasheet. Values are lifted from `boards/*.yaml`, so they cannot drift from
+what the tools actually recorded.
+
+| | ESP32-S3 devkit | Adafruit QT Py ESP32-S2 |
+|---|---|---|
+| Chip (probed) | `ESP32-S3 (QFN56)` rev v0.2 | `ESP32-S2FNR2` rev v0.0 |
+| `idf.py set-target` | `esp32s3` | `esp32s2` |
+| Flash | 8MB, quad | 4MB embedded, quad |
+| PSRAM | 8MB (AP_3v3) | 2MB embedded |
+| Radios | Wi-Fi, BT 5 (LE) | Wi-Fi only |
+| Cores | Dual + LP core, 240MHz | Single, 240MHz |
+| USB | USB-Serial/JTAG | USB-OTG |
+| Partitions read | 4 | 6 |
+| Profile | `boards/e072a1fb9c5c.yaml` | `boards/d4f98d661364.yaml` |
+
+**The S3 proved the happy path.** Identify, back up (8MB), flash different
+firmware, run it, restore — and the restored image is **byte-identical** by
+SHA-256 across all 8,388,608 bytes. It also established
+`board.read_baud_max: 230400` by physical test, the repo's first `verified`
+fact: 256KB reads succeeded at 115200 and 230400, and failed reproducibly at
+460800 and 921600.
+
+**The S2 proved the failure paths**, and was worth more. It carries `tinyuf2`
+alongside an Arduino app plus a FAT partition, so USB is claimed by application
+firmware and esptool cannot auto-enter the bootloader. Four bugs only it could
+find:
+
+- a probe that fails still reads USB, so `profile_key()` hashed and orphaned a
+  second profile for one board
+- `--after hard-reset` ended every stage by resetting, consuming the single
+  manual BOOT+RESET the pipeline depended on
+- back-to-back esptool calls contended for the USB CDC endpoint
+- its USB identity is **mode-dependent** — `239a:8111` "QT Py ESP32-S2" under
+  tinyuf2, `303a:0002` "ESP32-S2" under the ROM bootloader *or* an app using
+  native CDC, which are indistinguishable from the descriptor alone
+
+Both boards independently confirmed that the USB serial-number descriptor
+equals the eFuse MAC (`E0:72:A1:FB:9C:5C`, `d4:f9:8d:66:13:64`). That is what
+`profile_key()` now falls back to — recorded as `inferred`, never `probed`,
+because two-for-two is a strong hint and not a measurement.
+
+### Not validated
+
+- **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
+  first is an 8-byte EUI64; an early parser truncated it into a wrong 6-byte
+  identity, and identity is the backup key. Neither board has an EUI64. Closing
+  this needs a C6, C5, or H2.
+- **`restore` on the S2** — only exercised on the S3.
+- **Boards behind a UART bridge** (CH340/CP210x/FTDI). Both boards here are
+  native USB; the bridge path in `identify_usb()` is untested against hardware.
 
 ## Is it working?
 
