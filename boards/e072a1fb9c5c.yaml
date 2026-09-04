@@ -1,0 +1,213 @@
+schema_version: 1
+profile_id: e072a1fb9c5c
+identified_at: '2026-09-04T18:55:47.981914+00:00'
+port_seen_on: /dev/cu.usbmodem1101
+identity:
+  usb_vid:
+    value: '0x303a'
+    provenance: usb
+  usb_pid:
+    value: '0x1001'
+    provenance: usb
+  usb_serial_number:
+    value: E0:72:A1:FB:9C:5C
+    provenance: usb
+  usb_interface:
+    value: Espressif USB JTAG/serial debug unit
+    provenance: usb
+  usb_interface_kind:
+    value: native
+    provenance: usb
+    note: native = the SoC implements USB directly (supports USB-JTAG debug, USB CDC console, and can
+      re-enumerate after reset). bridge = a separate UART chip; the SoC has no USB peripheral.
+  usb_vendor:
+    value: Espressif
+    provenance: usb
+  chip:
+    value: ESP32-S3 (QFN56) (revision v0.2)
+    provenance: probed
+  chip_family:
+    value: ESP32-S3
+    provenance: probed
+  chip_revision:
+    value: '0.2'
+    provenance: probed
+  chip_features:
+    value:
+    - Wi-Fi
+    - BT 5 (LE)
+    - Dual Core + LP Core
+    - 240MHz
+    - Embedded PSRAM 8MB (AP_3v3)
+    provenance: probed
+    note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
+      of the vendor listing.
+  crystal:
+    value: 40MHz
+    provenance: probed
+  usb_mode:
+    value: USB-Serial/JTAG
+    provenance: probed
+    note: Reported by esptool 5.x from the chip itself; corroborates the USB VID/PID reading of native
+      vs bridge.
+  mac:
+    value: e0:72:a1:fb:9c:5c
+    provenance: probed
+    note: Base MAC from eFuse (read from the 'MAC' line) -- globally unique per board. Used as the profile
+      and backup key so two boards of the same model never collide.
+  flash_manufacturer_id:
+    value: '0xc8'
+    provenance: probed
+  flash_device_id:
+    value: '0x4017'
+    provenance: probed
+  flash_size:
+    value: 8MB
+    provenance: probed
+    note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
+      wrong about this.
+  partitions:
+    value:
+    - label: nvs
+      type: data
+      subtype: nvs
+      offset: '0x9000'
+      offset_int: 36864
+      size: '0x5000'
+      size_int: 20480
+      size_human: 20KB
+      encrypted: false
+    - label: otadata
+      type: data
+      subtype: ota
+      offset: '0xe000'
+      offset_int: 57344
+      size: '0x2000'
+      size_int: 8192
+      size_human: 8KB
+      encrypted: false
+    - label: app0
+      type: app
+      subtype: ota_0
+      offset: '0x10000'
+      offset_int: 65536
+      size: '0x600000'
+      size_int: 6291456
+      size_human: 6MB
+      encrypted: false
+    - label: spiffs
+      type: data
+      subtype: spiffs
+      offset: '0x610000'
+      offset_int: 6356992
+      size: '0x1f0000'
+      size_int: 2031616
+      size_human: 1.9375MB
+      encrypted: false
+    provenance: probed
+    note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
+      it over any assumed default.
+  partition_table_md5:
+    value: 88d2725f330ce2d135e905d4993c9ee9
+    provenance: probed
+  applications:
+    value:
+    - secure_version: 0
+      app_version: 'esp-idf: v4.4.7 38eeba213a'
+      project_name: arduino-lib-builder
+      build_time: '12:12:53'
+      build_date: Mar  5 2024
+      idf_version: v4.4.7-dirty
+      app_elf_sha256: 31af57d0f57185fd50d5c8defbba9a20f3a764d25a80bc73db1cd4fdb97f4100
+      partition: app0
+    provenance: probed
+    note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
+      and which SDK built it.
+pinmap: {}
+peripherals: {}
+research_queue:
+- field: display
+  status: unknown
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Find the vendor schematic or board definition for the ESP32-S3 board carrying this display; confirm
+    controller part number (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing a driver.
+- field: pinmap
+  status: unknown
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first, then the vendor's Arduino/PlatformIO board .json or pins_arduino.h,
+    then community repos. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+- field: power
+  status: unknown
+  why: Battery connector, charge IC, and ADC divider ratio are board-level.
+  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
+    corrupts every battery reading.
+_diagnostics:
+  esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
+  esptool_version: 5.2.0
+  esptool_dialect: hyphenated (5.x)
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788548145
+  flash_id_rc: 0
+  flash_id_output: 'esptool v5.2.0
+
+    Serial port /dev/cu.usbmodem1101:
+
+    Connecting...
+
+    Detecting chip type... ESP32-S3
+
+    Connected to ESP32-S3 on /dev/cu.usbmodem1101:
+
+    Chip type:          ESP32-S3 (QFN56) (revision v0.2)
+
+    Features:           Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz, Embedded PSRAM 8MB (AP_3v3)
+
+    Crystal frequency:  40MHz
+
+    USB mode:           USB-Serial/JTAG
+
+    MAC:                e0:72:a1:fb:9c:5c
+
+
+    Uploading stub flasher...
+
+    Running stub flasher...
+
+    Stub flasher running.
+
+
+    Flash Memory Information:
+
+    =========================
+
+    Manufacturer: c8
+
+    Device: 4017
+
+    Detected flash size: 8MB
+
+    Flash type set in eFuse: quad (4 data lines)
+
+    Flash voltage set by eFuse: 3.3V
+
+
+    Hard resetting via RTS pin...'
+  fixture_recorded: tests/fixtures/board1.txt
+  partition_rc: 0
+board:
+  read_baud_max:
+    value: 230400
+    provenance: verified
+    note: 'Determined by physical test, not documentation. 256KB reads: 115200 OK 23.5s, 230400 OK 12.4s,
+      460800 FAIL, 921600 FAIL (''Serial data stream stopped: possible serial noise or corruption''),
+      reproducible in <6s at both failing rates. write-flash succeeded at 460800, so the ceiling applies
+      to READS only.'
+verification_log:
+- date: '2026-09-04'
+  tested: board.read_baud_max
+  method: Read a 256KB region at 115200/230400/460800/921600 via esptool read-flash and recorded pass/fail
+    and duration.
+  result: verified
+  note: Full 8MB backup measured 731s at 115200. 230400 halves that and is the highest rate this board
+    reads reliably.

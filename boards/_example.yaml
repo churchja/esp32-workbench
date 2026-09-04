@@ -1,0 +1,46 @@
+# EXAMPLE PROFILE — not real hardware. Named with a leading underscore so it is
+# obviously not a probed board. Kept because it must pass validate_profiles.py,
+# so the documented schema cannot drift away from the enforced one.
+schema_version: 1
+profile_id: _example
+identified_at: '2026-09-04T09:00:00+00:00'
+port_seen_on: /dev/cu.usbmodem101
+
+identity:
+  chip: {value: ESP32-C6 (QFN40) (revision v0.1), provenance: probed}
+  chip_family: {value: ESP32-C6, provenance: probed}
+  mac: {value: '30:ae:a4:11:22:33', provenance: probed}
+  flash_size: {value: 8MB, provenance: probed}
+  usb_interface: {value: Espressif USB JTAG/serial debug unit, provenance: usb}
+  usb_interface_kind: {value: native, provenance: usb}
+
+board:
+  vendor: {value: Waveshare, provenance: vendor_doc, source: 'https://www.waveshare.com/wiki/Main_Page'}
+  pio_board:
+    value: esp32-c6-devkitc-1
+    provenance: inferred
+    note: No exact registry entry; generic C6 module plus explicit pins.
+
+display:
+  row_offset:
+    value: 34
+    provenance: verified
+    note: Image was shifted until this was applied.
+
+pinmap:
+  lcd_bl:
+    value: 22
+    provenance: unverified
+    note: Single community source, unconfirmed. Do not drive.
+
+verification_log:
+  - date: '2026-09-04'
+    tested: display.row_offset
+    method: Flashed a test pattern; user photographed the panel.
+    result: verified
+
+research_queue:
+  - field: pinmap
+    status: unknown
+    why: GPIO assignment is a PCB routing decision, invisible to probing.
+    how: Vendor schematic, then board .json / pins_arduino.h, then community.

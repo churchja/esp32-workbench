@@ -1,0 +1,33 @@
+# Flash images are megabytes of binary per board. The manifest is the record
+# that matters and IS tracked -- it says what was backed up, when, and its hash.
+backups/**/*.bin
+backups/**/dump/
+!backups/**/manifest.json
+
+# Build outputs. NOTE both framework conventions -- an earlier version listed
+# only .pio/ (PlatformIO) and the ESP-IDF migration silently made
+# projects/*/build/ committable: 97MB across 3244 files, including 4MB mbedTLS
+# archives and a 3MB ELF.
+.pio/
+projects/*/.pio/
+build/
+projects/*/build/
+managed_components/
+projects/*/managed_components/
+
+# Generated per-target by `idf.py set-target`; sdkconfig.defaults is the
+# tracked source of truth. Known-good fragments live in
+# templates/idf-base/examples/.
+sdkconfig
+sdkconfig.old
+projects/*/sdkconfig
+projects/*/sdkconfig.old
+
+.scratch/
+.scratch_build/
+.smoke_idf/
+projects/_validate/
+*.bak
+__pycache__/
+.DS_Store
+.scratch_build/

@@ -1,0 +1,32 @@
+# Safe defaults for a first-contact probe on unknown hardware.
+CONFIG_ESP_TASK_WDT_INIT=n
+CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# Console: left at IDF's own default deliberately.
+#
+# Verified on esp32s3 with ESP-IDF v6.0.3 by generating sdkconfig and reading
+# it back: IDF selects CONFIG_ESP_CONSOLE_UART_DEFAULT=y *together with*
+# CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y. The secondary console is the
+# reason a native-USB board (303a:1001, no UART bridge) still prints over USB
+# -- output goes to both interfaces.
+#
+# So do NOT "fix" this to CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y for native-USB
+# parts: that would DISABLE UART output and break bridge boards, to solve a
+# problem that does not exist. If a board is silent after flashing, check
+# CONFIG_ESP_CONSOLE_SECONDARY_* is still enabled before changing the primary.
+
+# Flash size MUST come from the probed profile, not from IDF's default.
+#
+# IDF defaults to 2MB when nothing says otherwise. On an 8MB board that sizes
+# the bootloader header and partition table for a quarter of the flash -- the
+# probe already knows the real answer, so use it:
+#
+#   python3 tools/esp32ident.py --list        # then read boards/<mac>.yaml
+#   CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y          # match identity.flash_size
+#
+# Uncomment the one matching YOUR board. Leaving this wrong is not dangerous,
+# but it wastes flash and produces a partition table that cannot grow.
+# CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+# CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+# CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
