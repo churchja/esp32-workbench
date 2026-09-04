@@ -63,19 +63,27 @@ def looks_like_baud_failure(output):
     return any(m in low for m in CORRUPTION_MARKERS)
 
 
-def read_with_fallback(esp, port, address, size, dest, timeout_for, baud=None):
+def read_with_fallback(esp, port, address, size, dest, timeout_for, baud=None,
+                       after=None):
     """
     Read flash, stepping down the baud ladder on corruption-type failures.
 
     Returns (rc, output, baud_used). A non-corruption failure is returned
     immediately rather than retried -- a chip that will not answer at all is
     not going to answer slower.
+
+    `after` is passed to every attempt. It matters: esptool defaults to
+    --after hard-reset, so a backup ends by rebooting the board. On a
+    native-USB part that re-enumerates under a different identity on a
+    different port path, and the NEXT command targets a port that no longer
+    exists. That is exactly how an `idf.py flash` right after a backup failed
+    with "could not open /dev/cu.usbmodem01".
     """
     ladder = [baud] if baud else list(BAUD_LADDER)
     last = (1, "", None)
     for b in ladder:
         rc, so, se = esp.run(port, "read-flash", str(address), str(size), dest,
-                             timeout=timeout_for(b), baud=b)
+                             timeout=timeout_for(b), baud=b, after=after)
         blob = so + se
         if rc == 0:
             return rc, blob, b
@@ -241,6 +249,26 @@ def require_backup(mac, chip, args, action, address=None, length=None):
 # Commands
 # --------------------------------------------------------------------------
 
+def report_board_state(after, port):
+    """
+    State the board is in now, and what that means for the NEXT command.
+
+    This is the information whose absence caused a real failure: a backup ended
+    with esptool's default hard-reset, the board rebooted and re-enumerated
+    under a different VID/PID on a different path, and the flash that followed
+    opened a port that had ceased to exist.
+    """
+    if after == "no-reset":
+        info(f"Board left in DOWNLOAD MODE on {port} -- the next flash or dump "
+             f"can use it directly. Tap RESET to run its firmware again. Do not "
+             f"leave it parked indefinitely; a resident stub can drop USB.")
+    else:
+        info(f"Board was RESET and is running its firmware again. On a "
+             f"native-USB part it re-enumerates, so {port} may no longer exist "
+             f"-- re-check with tools/usbwatch.py --once before the next "
+             f"command, or use --after no-reset to keep it parked.")
+
+
 def cmd_backup(esp, args):
     port = args.port
     mac, size, chip = board_identity(esp, port)
@@ -279,7 +307,8 @@ def cmd_backup(esp, args):
     info("Do not unplug.")
     t0 = time.time()
     rc, blob, baud_used = read_with_fallback(esp, port, 0, size, dest,
-                                            timeout_for, baud=args.baud)
+                                            timeout_for, baud=args.baud,
+                                            after=args.after)
     so, se = blob, ""
     if rc != 0:
         if os.path.exists(dest):
@@ -312,6 +341,7 @@ def cmd_backup(esp, args):
     save_manifest(mac, man)
 
     info(f"Backup complete in {elapsed:.0f}s at {baud_used} baud")
+    report_board_state(args.after, port)
     print(dest)
     print(f"sha256 {digest}")
     return 0
@@ -434,6 +464,13 @@ def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--port", default=argparse.SUPPRESS)
     common.add_argument("--timeout", type=int, default=argparse.SUPPRESS)
+    common.add_argument("--after", default=argparse.SUPPRESS,
+                        choices=("hard-reset", "no-reset"),
+                        help="what to do when the operation finishes. "
+                             "hard-reset (default) returns the board to running "
+                             "its firmware but re-enumerates it, changing the "
+                             "port; no-reset parks it in download mode so the "
+                             "next flash can use the same port.")
     common.add_argument("--baud", type=int, default=argparse.SUPPRESS,
                         help="pin a serial rate; default is to try "
                              "460800/230400/115200 and use the first that works")
@@ -446,7 +483,7 @@ def main():
     ap = argparse.ArgumentParser(
         description=__doc__, parents=[common],
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.set_defaults(port=None, timeout=1800, baud=None, yes=False,
+    ap.set_defaults(port=None, timeout=1800, baud=None, after='hard-reset', yes=False,
                     no_backup_i_accept_the_risk=False)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
