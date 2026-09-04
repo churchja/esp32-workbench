@@ -1,7 +1,7 @@
 # esp32-workbench
 
 [![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v6.0.3-informational)](.idf-version)
-[![hardware validated](https://img.shields.io/badge/hardware%20validated-ESP32--S3%20%7C%20ESP32--S2-success)](#validated-hardware)
+[![hardware validated](https://img.shields.io/badge/hardware%20validated-ESP32--S3%20%7C%20S2%20%7C%20ESP8266-success)](#validated-hardware)
 [![tests](https://img.shields.io/badge/tests-no%20CI%2C%20run%20.%2Fsmoke.sh-lightgrey)](#is-it-working)
 
 <sub>No "build passing" badge: there is no CI on this repo, so such a badge
@@ -103,28 +103,37 @@ Every claim below was produced by running against the board, not by reading a
 datasheet. Values are lifted from `boards/*.yaml`, so they cannot drift from
 what the tools actually recorded.
 
-| | ESP32-S3 devkit | Adafruit QT Py ESP32-S2 |
-|---|---|---|
-| Chip (probed) | `ESP32-S3 (QFN56) (revision v0.2)` | `ESP32-S2FNR2 (revision v0.0)` |
-| `idf.py set-target` | `esp32s3` | `esp32s2` |
-| Flash | 8MB, quad | 4MB embedded, quad |
-| PSRAM | 8MB (AP_3v3) | 2MB embedded |
-| Radios | Wi-Fi, BT 5 (LE) | Wi-Fi only |
-| Cores | Dual + LP core, 240MHz | Single, 240MHz |
-| USB peripheral | `USB-Serial/JTAG` | `USB-OTG` |
-| USB product string | not captured | `QT Py ESP32-S2` |
-| Partitions read | 4 | 6 |
-| **Max read baud** (`verified`) | **230400** | **460800** |
-| Backup · flash · restore | ✅ | ✅ |
-| Console over USB | ✅ | ❌ *(see below)* |
-| Profile | `boards/e072a1fb9c5c.yaml` | `boards/d4f98d661364.yaml` |
+| | ESP32-S3 devkit | Adafruit QT Py ESP32-S2 | CH340 board |
+|---|---|---|---|
+| Chip (probed) | `ESP32-S3 (QFN56) (revision v0.2)` | `ESP32-S2FNR2 (revision v0.0)` | `ESP8266EX` |
+| `idf.py set-target` | `esp32s3` | `esp32s2` | **none** — not an IDF target |
+| Flash | 8MB, quad | 4MB embedded, quad | 4MB |
+| PSRAM | 8MB (AP_3v3) | 2MB embedded | none |
+| Radios | Wi-Fi, BT 5 (LE) | Wi-Fi only | Wi-Fi only |
+| Cores | Dual + LP core, 240MHz | Single, 240MHz | Single, 160MHz |
+| USB peripheral | `USB-Serial/JTAG` | `USB-OTG` | **none** — CH340 bridge |
+| USB product string | not captured | `QT Py ESP32-S2` | `USB2.0-Serial` |
+| Partitions read | 4 | 6 | **0** — no such table |
+| **Max read baud** (`verified`) | **230400** | **460800** | **230400** |
+| Backup | ✅ | ✅ | ✅ |
+| Flash · restore | ✅ | ✅ | **not exercised** |
+| Console over USB | ✅ | ❌ *(see below)* | n/a — UART *is* the console |
+| Profile | `e072a1fb9c5c` | `d4f98d661364` | `bcddc2246e97` |
 
-Note the baud row. The S2 reads reliably at **twice** the S3's ceiling, and the
-S3 fails reproducibly at the rate the S2 handles fine. Read speed is a property
-of the individual board — its USB peripheral, cable and host path together —
-not of the chip family or of esptool. No fixed default is right for both: 115200
-makes the S2 four times slower than necessary, 460800 makes S3 backups *fail*.
-That is why `esp32flash.py` negotiates a ladder instead of taking a constant.
+Note the baud row: **460800, 230400, 230400** across three boards. The S2 reads
+reliably at twice the S3's ceiling, and the S3 fails reproducibly at the rate
+the S2 handles fine. Crucially the two *native-USB* boards disagree with each
+other, so this is not native-vs-bridge either — read speed belongs to the
+individual board, its cable and its host path together. No constant is right:
+115200 makes the S2 four times slower than needed, 460800 makes S3 and ESP8266
+backups *fail*. That is why `esp32flash.py` negotiates a ladder.
+
+Timing corroborates the mechanism. Against the 10-bits-per-byte serial framing
+model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted and the ESP8266
+(real UART bridge) 202s vs 182 — both close. Only the S2's **USB-OTG** ran far
+faster than predicted (33s vs 91), because OTG CDC does not throttle to the
+nominal baud. The model stays a safe *upper* bound, which is all the derived
+timeout needs.
 
 **The S3 proved the happy path.** Identify, back up (8MB), flash different
 firmware, run it, restore — and the restored image is **byte-identical** by
@@ -163,6 +172,28 @@ equals the eFuse MAC (`E0:72:A1:FB:9C:5C`, `d4:f9:8d:66:13:64`). That is what
 `profile_key()` falls back to when a probe cannot reach the chip — recorded as
 `inferred`, never `probed`, because two-for-two is a strong hint and not a
 measurement.
+
+**The CH340 board closed the bridge path**, which had never met hardware —
+both other boards are native USB. It probed clean on the first attempt: no
+BOOT+RESET, no port churn, no vanishing. Every problem that dominated the S2
+work came from the SoC *being* the USB device; here the CH340 is, and it stays
+enumerated regardless of what the SoC does.
+
+It also turned out to be an **ESP8266, not an ESP32**, which tested more than
+intended. `ESP8266EX` normalises to `esp8266ex`, matches no ESP-IDF target, and
+`idf_target` is emitted as `None` with provenance `unverified` and a note naming
+what it normalised to. It did not invent `esp8266` — and did not fall back to
+`esp32`, which a prefix matcher written slightly differently would have, since
+both begin with `esp`. Its `usb_product` is `USB2.0-Serial`: the *bridge chip's*
+generic string, naming neither the board nor the SoC, unlike the S2's
+`QT Py ESP32-S2`.
+
+> **Scope: ESP8266 support stops at identification and backup.** There is no IDF
+> target, no ESP32-style partition table, and no app descriptor, so those
+> sections are empty rather than wrong — the pipeline degrades stage by stage.
+> Flashing and restoring an ESP8266 use different esptool semantics that have
+> **not** been exercised here, and building for one needs ESP8266_RTOS_SDK, not
+> ESP-IDF. Treat it as a probe-and-back-up target, not a supported build target.
 
 ### Not validated
 
