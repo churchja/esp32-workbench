@@ -64,15 +64,33 @@ automatically when you work in this repo.
 | `tools/esp32flash.py` | Backup / restore / flash / erase, behind the write gate |
 | `tools/esp32dump.py` | Partition dump, SPIFFS/LittleFS extraction, NVS parse, forensics |
 | `tools/gate.py` | The backup-gate decision, as a pure testable function |
-
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research |
-| `tools/test_*.py` | 98 assertions across 4 files; no hardware needed |
-| `smoke.sh` | One command: readiness + unit + schema + real PlatformIO |
+| `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
+| `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
+| `tools/test_*.py` | 249 assertions across 7 files; no hardware needed |
+| `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
-| `templates/pio-base/` | PlatformIO starter that drives no GPIO, safe on unverified hardware |
+| `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
+| `templates/idf-usb-console/` | Sibling for **USB-OTG parts (S2)**, where a console needs TinyUSB |
+| `templates/pio-base/` | PlatformIO/Arduino sibling, for the Arduino display-library ecosystem |
 | `backups/` | Flash images (gitignored) + manifests (tracked) |
 | `docs/` | Design rationale and recommendations |
 | `.claude/skills/esp32-workbench/` | The skill and its references |
+
+### Which template
+
+| Your board | Template | Why |
+|---|---|---|
+| S3, C3, C6, C5, H2, P4 | `idf-base` | USB-Serial/JTAG gives a secondary console free; readable unchanged |
+| **ESP32-S2** | **`idf-usb-console`** | USB-OTG only — no secondary console exists, so TinyUSB must drive it |
+| classic ESP32 behind a bridge | `idf-base` | UART *is* the console |
+| anything needing TFT_eSPI, LovyanGFX, GxEPD2 | `pio-base` | the Arduino ecosystem, which ESP-IDF does not replace |
+
+`idf-base` drives **no peripheral at all** — no GPIO, no radios — which is what
+makes it safe to flash onto a board whose pin map is unverified. `idf-usb-console`
+deliberately breaks that to drive the USB-OTG peripheral, and costs a manual
+BOOT+RESET before every reflash, because TinyUSB owns USB and esptool has
+nothing to handshake with. They are siblings for that reason, not versions.
 
 ## The two rules
 
