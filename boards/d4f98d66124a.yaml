@@ -272,3 +272,10 @@ verification_log:
   note: 'Fourth data point. Corrects an earlier claim that the ceiling is per-board: that argued from
     ''two native boards disagree'', which conflated USB-OTG with USB-Serial/JTAG. Split by interface,
     all four boards agree.'
+- date: '2026-09-04'
+  tested: restore
+  method: Full 4MB restore, board booted, read back and compared region-by-region against the probed partition
+    table.
+  result: verified
+  note: Every code/filesystem region byte-identical; 49 bytes differ in nvs. The other QT Py showed 50
+    on two separate restores, so the count is DEVICE-specific, not purely firmware behaviour.

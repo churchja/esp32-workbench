@@ -241,12 +241,29 @@ Across three restores the picture is consistent, and the S2's delta is a
 | ESP32-S2, restore #1 | 50 bytes, all in `nvs` |
 | ESP32-S2, restore #2 | **50 bytes, all in `nvs`** — same count, same region |
 
-Two independent restores of the same board producing an identical delta rules
-out write error, which would be arbitrary. It is tinyuf2 initialising the same
-NVS keys on every boot. A whole-image SHA-256 reports only "mismatch"; the
-region breakdown shows bootloader, both app slots, `uf2` and `ffat` all
-byte-perfect with movement confined to the partition designed to be written —
-which is the argument for the profile carrying the partition layout.
+A **second** QT Py — a different board of the same model — then showed **49**,
+which is the useful result:
+
+| Board | Restore | `nvs` delta | Every other region |
+|---|---|---|---|
+| ESP8266 | #1 | 0 | identical |
+| QT Py A | #1 | 50 | identical |
+| QT Py A | #2 | 50 | identical |
+| QT Py B | #1 | **49** | identical |
+
+The same board reproduces exactly; a different board of the same model does
+not. So the count is **device-specific** — MAC-derived values, a differing key
+length — rather than a fixed firmware signature. An earlier version of this
+file said tinyuf2 "initialises the same NVS keys on every boot", implying an
+identical count. That was built on one board and the second narrowed it.
+
+What holds across all four restores is the claim that matters: **`restore` is
+exact.** Bootloader, partition table, both app slots, `uf2` and `ffat` are
+byte-perfect every time, and every byte that moves is inside the one partition
+designed to be written. A whole-image SHA-256 reports only "mismatch" and
+leaves you guessing; the region breakdown separates *restore failed* from
+*firmware booted and did its job* — which is why the profile carries the
+partition layout and not just the sizes.
 
 **Console over USB on the S2 took a third approach.** Parts with a
 USB-Serial/JTAG controller (S3/C3/C6/C5/H2/P4) get a secondary console for free
