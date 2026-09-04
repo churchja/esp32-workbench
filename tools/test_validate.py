@@ -114,6 +114,72 @@ else:
     print("  FAIL  boards/_example.yaml missing")
     FAIL.append("example missing")
 
+
+# ---------------------------------------------------------------------------
+# merge_profile -- re-probing must not destroy researched knowledge
+# ---------------------------------------------------------------------------
+print("\nprofile merge on re-identify")
+
+from esp32ident import merge_profile  # noqa: E402
+
+
+def check(name, got, want):
+    """This file's other helper is run(); merge tests compare values directly."""
+    if got == want:
+        print(f"  PASS  {name}")
+    else:
+        print(f"  FAIL  {name}\n          got:  {got!r}\n          want: {want!r}")
+        FAIL.append(name)
+
+
+OLD = {
+    "profile_id": "aabbcc",
+    "identified_at": "2026-09-01T00:00:00+00:00",
+    "identity": {
+        "chip_family": {"value": "ESP32-S3", "provenance": "probed"},
+        "hand_added": {"value": 1, "provenance": "community",
+                       "source": "https://example.com"},
+    },
+    "board": {"read_baud_max": {"value": 230400, "provenance": "verified"}},
+    "pinmap": {"lcd_bl": {"value": 22, "provenance": "vendor_doc",
+                          "source": "https://x"}},
+    "verification_log": [{"date": "2026-09-01", "tested": "board.read_baud_max",
+                          "result": "verified"}],
+    "research_queue": [{"field": "power", "status": "resolved"},
+                       {"field": "display", "status": "unknown"}],
+}
+NEW = {
+    "profile_id": "aabbcc",
+    "identified_at": "2026-09-04T00:00:00+00:00",
+    "identity": {
+        "chip_family": {"value": "ESP32-S3", "provenance": "probed"},
+        "flash_size": {"value": "8MB", "provenance": "probed"},
+    },
+    "research_queue": [{"field": "pinmap", "status": "unknown"},
+                       {"field": "power", "status": "unknown"},
+                       {"field": "display", "status": "unknown"}],
+}
+m = merge_profile(OLD, NEW)
+
+check("researched 'board' survives a re-probe", m["board"], OLD["board"])
+check("researched 'pinmap' survives", m["pinmap"], OLD["pinmap"])
+check("verification_log survives", len(m["verification_log"]), 1)
+check("newly probed field is present", m["identity"]["flash_size"]["value"], "8MB")
+check("hand-added identity field survives",
+      m["identity"]["hand_added"]["value"], 1)
+check("identified_at refreshes to the new probe",
+      m["identified_at"], NEW["identified_at"])
+check("first_identified_at keeps the original",
+      m["first_identified_at"], OLD["identified_at"])
+
+fields = {i["field"] for i in m["research_queue"]}
+check("already-answered section drops out of the queue", "pinmap" in fields, False)
+check("resolved item stays resolved", "power" in fields, False)
+check("genuinely open item remains", "display" in fields, True)
+
+check("no prior profile -> new returned unchanged", merge_profile({}, NEW), NEW)
+check("None prior -> new returned unchanged", merge_profile(None, NEW), NEW)
+
 print()
 if FAIL:
     print(f"{len(FAIL)} FAILURE(S): {', '.join(FAIL)}")

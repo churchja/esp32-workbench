@@ -21,14 +21,16 @@ identity:                          # written by esp32ident.py -- probed
   flash_size:      {value: "8MB", provenance: probed}
   usb_interface:   {value: "Espressif USB JTAG/serial debug unit", provenance: usb}
   usb_interface_kind: {value: native, provenance: usb}
+  idf_target:      {value: esp32c6, provenance: inferred,
+                    note: "Derived from chip_family. Use: idf.py set-target esp32c6"}
   partitions:      {value: [...], provenance: probed}
   applications:    {value: [{project_name: ..., idf_version: ...}], provenance: probed}
 
 board:                             # researched -- who made it, what it is
   vendor:      {value: Waveshare, provenance: vendor_doc, source: "https://..."}
   model:       {value: ESP32-C6-LCD-1.47, provenance: vendor_doc, source: "https://..."}
-  pio_board:   {value: esp32-c6-devkitc-1, provenance: inferred,
-                note: "No exact registry entry; generic C6 module + explicit pins"}
+  # NOTE idf_target lives under `identity`, not here -- it is DERIVED from the
+  # probed chip_family by esp32ident.py, not researched. See below.
 
 display:                           # researched -- probing cannot see this
   controller:  {value: ST7789, provenance: vendor_doc, source: "https://..."}
@@ -57,8 +59,24 @@ research_queue:                    # auto-generated: what is still unknown
   - field: pinmap
     status: unknown
     why: "GPIO assignment is a PCB routing decision, invisible to probing."
-    how: "Vendor schematic, then board .json / pins_arduino.h, then community."
+    how: "Vendor schematic, then a BSP component (esp-bsp / ESP Component
+           Registry), then community pin maps."
 ```
+
+## idf_target is derived, never researched
+
+`identity.idf_target` is computed from the probed `chip_family` by
+longest-prefix match against ESP-IDF's own target list, so it never appears in
+`research_queue`. Two cases make the naive transform wrong:
+
+- `ESP32-D0WD-V3` normalises to `esp32d0wdv3`, which `set-target` rejects. Only
+  `esp32` is a prefix of it, and that is the correct target.
+- `esp32c6` is a prefix of `esp32c61`, and `esp32h2` of `esp32h21`. Shortest
+  match silently builds a C61 as a C6. Longest wins, matched across the
+  supported *and* preview lists together.
+
+A preview target resolves but is labelled, because `set-target` needs
+`--preview` for it.
 
 ## Rules
 

@@ -1,6 +1,6 @@
 schema_version: 1
 profile_id: e072a1fb9c5c
-identified_at: '2026-09-04T18:55:47.981914+00:00'
+identified_at: '2026-09-04T19:45:09.110262+00:00'
 port_seen_on: /dev/cu.usbmodem1101
 identity:
   usb_vid:
@@ -66,6 +66,16 @@ identity:
     provenance: probed
     note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
       wrong about this.
+  flash_mode:
+    value: quad (4 data lines)
+    provenance: probed
+    note: quad vs octal changes the flash driver and the build config (CONFIG_ESPTOOLPY_OCT_FLASH / flash_mode).
+      Getting it wrong produces a board that flashes but will not boot.
+  flash_voltage:
+    value: 3.3V
+    provenance: probed
+    note: Set by eFuse. A 1.8V part driven at 3.3V is a hardware fault, not a config choice -- never override
+      this from a guess.
   partitions:
     value:
     - label: nvs
@@ -123,6 +133,11 @@ identity:
     provenance: probed
     note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
       and which SDK built it.
+  idf_target:
+    value: esp32s3
+    provenance: inferred
+    note: 'Derived from probed chip_family exactly. Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
+      not exported). Use: idf.py set-target esp32s3'
 pinmap: {}
 peripherals: {}
 research_queue:
@@ -130,13 +145,16 @@ research_queue:
   status: unknown
   why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
     records them.
-  how: Find the vendor schematic or board definition for the ESP32-S3 board carrying this display; confirm
-    controller part number (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing a driver.
+  how: Vendor schematic for the ESP32-S3 board carrying this display. Then check for an existing BSP component
+    -- search the ESP Component Registry (components.espressif.com) for the board name, and espressif/esp-bsp,
+    which already encodes panel type, offsets and pins for many vendor boards. Confirm the controller
+    part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
 - field: pinmap
   status: unknown
   why: GPIO assignment is a PCB routing decision, invisible to probing.
-  how: Vendor schematic PDF first, then the vendor's Arduino/PlatformIO board .json or pins_arduino.h,
-    then community repos. Mark every pin 'unverified' until a physical test confirms it.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
   danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
 - field: power
   status: unknown
@@ -147,7 +165,7 @@ _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0
   esptool_dialect: hyphenated (5.x)
-  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788548145
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788551106
   flash_id_rc: 0
   flash_id_output: 'esptool v5.2.0
 
@@ -193,7 +211,6 @@ _diagnostics:
 
 
     Hard resetting via RTS pin...'
-  fixture_recorded: tests/fixtures/board1.txt
   partition_rc: 0
 board:
   read_baud_max:
@@ -211,3 +228,4 @@ verification_log:
   result: verified
   note: Full 8MB backup measured 731s at 115200. 230400 halves that and is the highest rate this board
     reads reliably.
+first_identified_at: '2026-09-04T18:55:47.981914+00:00'

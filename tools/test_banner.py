@@ -153,8 +153,49 @@ else:
         check(f"{name}: flash size read", bool(v(d, "flash_size")), True)
         check(f"{name}: flash mode read", bool(v(d, "flash_mode")), True)
 
+
+# ---------------------------------------------------------------------------
+# idf.py set-target derivation
+# ---------------------------------------------------------------------------
+print("\nIDF target derivation from probed chip_family")
+
+from esp32ident import idf_target_for  # noqa: E402
+
+for fam, want in [
+    ("ESP32-S3 (QFN56) (revision v0.2)", "esp32s3"),   # the board we validated
+    ("ESP32-S3", "esp32s3"), ("ESP32-C3", "esp32c3"),
+    ("ESP32-C6", "esp32c6"), ("ESP32-C5", "esp32c5"),
+    ("ESP32-S2", "esp32s2"), ("ESP32-H2", "esp32h2"),
+    ("ESP32-P4", "esp32p4"),
+]:
+    check(f"{fam!r} -> {want}", idf_target_for(fam)[0], want)
+
+# Trap 1: classic ESP32 part numbers do NOT normalise to a valid target.
+# "esp32d0wdv3" is rejected by set-target; only "esp32" is accepted.
+for fam in ("ESP32-D0WD-V3", "ESP32-D0WDQ6", "ESP32-U4WDH", "ESP32-PICO-D4"):
+    check(f"{fam!r} falls back to plain esp32", idf_target_for(fam)[0], "esp32")
+check("note explains the fallback",
+      "longest-prefix" in (idf_target_for("ESP32-D0WD-V3")[1] or ""), True)
+
+# Trap 2: esp32c6 is a PREFIX of esp32c61. A shortest-match or dict-order
+# lookup silently builds a C61 as a C6 -- different silicon, identical-looking
+# build. Longest-prefix is what prevents that.
+check("ESP32-C61 does NOT collapse to esp32c6",
+      idf_target_for("ESP32-C61")[0], "esp32c61")
+check("ESP32-C6 stays esp32c6", idf_target_for("ESP32-C6")[0], "esp32c6")
+
+got, note = idf_target_for("ESP32-H21")
+check("preview target still resolves", got, "esp32h21")
+check("preview target is labelled PREVIEW", "PREVIEW" in (note or ""), True)
+check("preview note mentions --preview", "--preview" in (note or ""), True)
+
+# Unknown silicon must yield nothing rather than a plausible guess.
+check("unknown chip yields no target", idf_target_for("ESP8266")[0], None)
+check("empty chip yields no target", idf_target_for("")[0], None)
+check("None chip yields no target", idf_target_for(None)[0], None)
+
 print()
 if FAIL:
     print(f"{len(FAIL)} FAILURE(S): {', '.join(FAIL)}")
     sys.exit(1)
-print("all banner tests passed")
+print("all banner + target tests passed")

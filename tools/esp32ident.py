@@ -556,10 +556,71 @@ def profile_key(merged):
     ).hexdigest()[:10]
 
 
+# Sections that hold facts probing CANNOT produce. A re-probe must never
+# destroy them -- doing so defeats the entire premise that a board identified
+# once is never re-derived.
+RESEARCHED_SECTIONS = ("board", "display", "pinmap", "power", "peripherals")
+
+
+def merge_profile(old, new):
+    """
+    Fold a freshly probed profile into an existing one.
+
+    Refresh what the silicon reports; preserve what it cannot know. Before this
+    existed, `--save` on an already-known board wiped every researched field
+    and the whole verification_log -- the exact knowledge the profile exists to
+    accumulate.
+    """
+    if not isinstance(old, dict) or not old:
+        return new
+    merged = dict(new)
+
+    for section in RESEARCHED_SECTIONS:
+        if old.get(section):
+            merged[section] = old[section]
+
+    # Append-only by definition: it is the evidence behind every 'verified'
+    # field, and the validator refuses 'verified' without a matching entry.
+    if old.get("verification_log"):
+        merged["verification_log"] = old["verification_log"]
+
+    # Identity: a fresh probe wins for anything it produced, but hand-added
+    # identity fields (and anything this probe could not read) survive.
+    old_id = old.get("identity") or {}
+    new_id = merged.get("identity") or {}
+    for k, v in old_id.items():
+        if k not in new_id:
+            new_id[k] = v
+    merged["identity"] = new_id
+
+    # Keep the research queue's resolved state rather than resurrecting items.
+    resolved = {i.get("field") for i in (old.get("research_queue") or [])
+                if isinstance(i, dict) and i.get("status") == "resolved"}
+    answered = {sec for sec in RESEARCHED_SECTIONS if old.get(sec)}
+    merged["research_queue"] = [
+        i for i in (merged.get("research_queue") or [])
+        if i.get("field") not in resolved and i.get("field") not in answered
+    ]
+
+    merged["first_identified_at"] = (old.get("first_identified_at")
+                                     or old.get("identified_at"))
+    return merged
+
+
 def build_profile(port, sections, diag):
     merged = {}
     for s in sections:
         merged.update(s)
+
+    # The IDF target is derivable, so derive it rather than asking for it.
+    fam = merged.get("chip_family", {}).get("value")
+    if fam:
+        target, note = idf_target_for(fam)
+        if target:
+            merged["idf_target"] = fact(target, "inferred", note=note)
+        else:
+            merged["idf_target"] = fact(None, "unverified", note=note)
+
     key = profile_key(merged)
     unknowns = suggest_research(merged)
     return {
@@ -575,10 +636,94 @@ def build_profile(port, sections, diag):
     }
 
 
+# Baked from ESP-IDF v6.0.3 tools/idf_py_actions/constants.py. Overridden at
+# runtime from the actual IDF install when $IDF_PATH is exported, so a pinned
+# repo and a newer toolchain cannot silently disagree.
+IDF_SUPPORTED_TARGETS = (
+    "esp32", "esp32s2", "esp32c3", "esp32s3", "esp32c2",
+    "esp32c6", "esp32h2", "esp32p4", "esp32c5", "esp32c61",
+)
+IDF_PREVIEW_TARGETS = ("esp32h21", "esp32h4")
+
+
+def _idf_targets():
+    """Prefer the installed IDF's own list over the baked-in copy."""
+    idf = os.environ.get("IDF_PATH")
+    if idf:
+        const = os.path.join(idf, "tools", "idf_py_actions", "constants.py")
+        if os.path.isfile(const):
+            try:
+                text = open(const).read()
+                out = {}
+                for name in ("SUPPORTED_TARGETS", "PREVIEW_TARGETS"):
+                    m = re.search(name + r"\s*=\s*\[(.*?)\]", text, re.S)
+                    out[name] = tuple(re.findall(r"'([^']+)'", m.group(1))) if m else ()
+                if out.get("SUPPORTED_TARGETS"):
+                    return (out["SUPPORTED_TARGETS"],
+                            tuple(t for t in out.get("PREVIEW_TARGETS", ())
+                                  if t != "linux"),
+                            f"read from {const}")
+            except Exception:  # noqa: BLE001
+                pass
+    return (IDF_SUPPORTED_TARGETS, IDF_PREVIEW_TARGETS,
+            "baked-in list from ESP-IDF v6.0.3 ($IDF_PATH not exported)")
+
+
+def idf_target_for(chip_family):
+    """
+    Map a probed chip family to the argument for `idf.py set-target`.
+
+    Longest-prefix match, which is load-bearing in two directions:
+
+      "ESP32-D0WD-V3" -> esp32d0wdv3, which set-target REJECTS. Only "esp32"
+      is a prefix of it, so plain esp32 is correctly chosen. A naive
+      strip-and-lowercase emits a target that cannot build.
+
+      "ESP32-C61" -> both "esp32c6" AND "esp32c61" are prefixes and both are
+      real targets. Shortest-match or dict-order lookup silently builds a C61
+      as a C6. Longest wins.
+
+    Returns (target, note) or (None, why-not).
+    """
+    if not chip_family:
+        return None, "no chip family probed"
+    norm = re.sub(r"[^a-z0-9]", "", str(chip_family).lower())
+    supported, preview, provenance = _idf_targets()
+
+    # Match over the UNION of supported and preview, then classify the winner.
+    #
+    # Searching supported first and preview second is WRONG, and subtly so:
+    # esp32h2 is supported while esp32h21 is preview, and the former is a
+    # prefix of the latter. A two-pass search returns esp32h2 for an H21 and
+    # never reaches the preview branch -- an H21 silently builds as an H2.
+    # Same shape as the c6/c61 collision, but crossing the list boundary.
+    hits = sorted((t for t in tuple(supported) + tuple(preview)
+                   if norm.startswith(t)), key=len, reverse=True)
+    if not hits:
+        return None, (f"{chip_family!r} normalises to {norm!r}, which matches no "
+                      f"ESP-IDF target. Target list {provenance}")
+
+    t = hits[0]
+    if t in preview:
+        return t, (f"{t} is a PREVIEW target in this ESP-IDF: idf.py set-target "
+                   f"needs --preview and support may be incomplete. "
+                   f"Target list {provenance}")
+    exact = " exactly" if t == norm else (
+        f" by longest-prefix match ({norm!r} -> {t!r}; "
+        f"set-target does not accept the full part number)")
+    return t, (f"Derived from probed chip_family{exact}. "
+               f"Target list {provenance}. Use: idf.py set-target {t}")
+
+
 def suggest_research(merged):
     """
-    Name what probing CANNOT answer. These are the fields that require
-    fetching a datasheet -- they are not encoded in the silicon anywhere.
+    Name what probing CANNOT answer -- fields that require a datasheet because
+    they are not encoded in the silicon anywhere.
+
+    Deliberately does NOT include the IDF target: that IS derivable from the
+    probed chip family, so it is emitted as an `inferred` fact instead. Asking
+    someone to research an answer the silicon already gave is the same defect
+    as a build ignoring the probed flash size.
     """
     q = []
     chip = merged.get("chip_family", {}).get("value", "unknown chip")
@@ -587,16 +732,22 @@ def suggest_research(merged):
             "field": "display", "status": "unknown",
             "why": "Display controller, resolution, and bus pins are a board-level "
                    "design choice; nothing on the SoC records them.",
-            "how": f"Find the vendor schematic or board definition for the {chip} "
-                   "board carrying this display; confirm controller part number "
-                   "(ST7789 / ILI9341 / SSD1680 / GDEH...) before writing a driver.",
+            "how": f"Vendor schematic for the {chip} board carrying this display. "
+                   "Then check for an existing BSP component -- search the ESP "
+                   "Component Registry (components.espressif.com) for the board "
+                   "name, and espressif/esp-bsp, which already encodes panel "
+                   "type, offsets and pins for many vendor boards. Confirm the "
+                   "controller part (ST7789 / ILI9341 / SSD1680 / GDEH...) before "
+                   "writing an esp_lcd driver.",
         })
     q.append({
         "field": "pinmap", "status": "unknown",
         "why": "GPIO assignment is a PCB routing decision, invisible to probing.",
-        "how": "Vendor schematic PDF first, then the vendor's Arduino/PlatformIO "
-               "board .json or pins_arduino.h, then community repos. Mark every "
-               "pin 'unverified' until a physical test confirms it.",
+        "how": "Vendor schematic PDF first. Then a BSP component for this board "
+               "(esp-bsp or the ESP Component Registry) -- its bsp/*.h header is "
+               "a machine-readable pin map and beats prose. Then IDF examples "
+               "shipped by the vendor. Mark every pin 'unverified' until a "
+               "physical test confirms it.",
         "danger": "Driving a wrong pin can short a rail. Never mark verified "
                   "without a hardware test.",
     })
@@ -702,13 +853,28 @@ def main():
     if args.save:
         os.makedirs(BOARDS_DIR, exist_ok=True)
         path = os.path.join(BOARDS_DIR, f"{profile['profile_id']}.yaml")
-        existing = ""
         if os.path.exists(path):
             with open(path) as fh:
                 existing = fh.read()
             backup = path + f".{int(time.time())}.bak"
             with open(backup, "w") as fh:
                 fh.write(existing)
+            try:
+                prior = yaml.safe_load(existing) or {}
+            except Exception:  # noqa: BLE001
+                prior = {}
+            before = profile
+            profile = merge_profile(prior, profile)
+            kept = [k for k in RESEARCHED_SECTIONS if k in profile
+                    and k not in before]
+            if kept or profile.get("verification_log"):
+                print(f"# merged with existing profile; preserved "
+                      f"{', '.join(kept) or 'no researched sections'}"
+                      + (f" + {len(profile['verification_log'])} "
+                         f"verification_log entr"
+                         f"{'y' if len(profile['verification_log']) == 1 else 'ies'}"
+                         if profile.get("verification_log") else ""),
+                      file=sys.stderr)
             print(f"# previous profile preserved at {backup}", file=sys.stderr)
         with open(path, "w") as fh:
             yaml.safe_dump(profile, fh, sort_keys=False,

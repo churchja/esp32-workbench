@@ -34,11 +34,17 @@ questions that every forum post will disagree about. Look for a "Resources",
 Board support packages encode the pin map in code, which is far less
 ambiguous than prose:
 
-- https://registry.platformio.org/ — search the board, read its `.json`
+- **https://components.espressif.com** — the ESP Component Registry. Search the
+  board name; many vendor boards have a BSP component whose `bsp/*.h` encodes
+  panel type, offsets and every pin.
+- **https://github.com/espressif/esp-bsp** — Espressif's own board support
+  packages. Read `bsp/<board>/include/bsp/*.h` for the pin map directly.
 - https://github.com/espressif/arduino-esp32 — `variants/<board>/pins_arduino.h`
-  is the authoritative Arduino pin map for supported boards
-- https://docs.platformio.org/en/latest/platforms/espressif32.html — board IDs
-  and framework options
+  is a machine-readable pin map for hundreds of boards. **Still valid on an
+  ESP-IDF bench**: a pin map is a property of the PCB, not of the framework you
+  compile with. Read the GPIO numbers out of it; do not adopt it as a build path.
+- https://registry.platformio.org/ — board `.json` files, same caveat: useful as
+  a source of numbers, not as a toolchain.
 
 Locally, PlatformIO's board database is already on disk:
 
@@ -57,6 +63,11 @@ sources that agree**, and record both URLs.
 Good hunting grounds: the vendor's own GitHub demo repo (search the board name
 plus `pins_arduino.h` or `User_Setup.h`), TFT_eSPI and LovyanGFX setup files,
 and Home Assistant / ESPHome device pages.
+
+These are Arduino-ecosystem files, and that does not disqualify them — they
+record which SoC pin is wired to which peripheral, which is a fact about the
+board. Transcribe the numbers into your IDF project and mark them
+`community`-tier with the URL.
 
 ### Tier 4 — inference (provenance: `inferred`)
 
