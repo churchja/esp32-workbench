@@ -67,7 +67,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 296 assertions across 8 files; no hardware needed |
+| `tools/test_*.py` | 301 assertions across 8 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
@@ -138,13 +138,29 @@ what the tools actually recorded.
 | Console over USB | ✅ | ✅ via `idf-usb-console` | n/a — UART *is* the console |
 | Profile | `e072a1fb9c5c` | `d4f98d661364` | `bcddc2246e97` |
 
-Note the baud row: **460800, 230400, 230400** across three boards. The S2 reads
-reliably at twice the S3's ceiling, and the S3 fails reproducibly at the rate
-the S2 handles fine. Crucially the two *native-USB* boards disagree with each
-other, so this is not native-vs-bridge either — read speed belongs to the
-individual board, its cable and its host path together. No constant is right:
-115200 makes the S2 four times slower than needed, 460800 makes S3 and ESP8266
-backups *fail*. That is why `esp32flash.py` negotiates a ladder.
+Note the baud row. Across **four** boards the ceiling tracks the **USB
+interface**, not the individual board:
+
+| Interface | Boards | Max read baud |
+|---|---|---|
+| USB-OTG | 2 × ESP32-S2 | **460800** |
+| USB-Serial/JTAG | ESP32-S3 | 230400 |
+| CH340 UART bridge | ESP8266 | 230400 |
+
+Two *independent* S2s agree at 460800 exactly, while the S3 fails reproducibly
+at that rate.
+
+An earlier version of this file claimed the ceiling was per-board, arguing that
+"the two native boards disagree with each other". That conflated USB-OTG with
+USB-Serial/JTAG — different peripherals — and was written from three data
+points. The fourth broke it. Split by interface, all four agree.
+
+The ladder is still the right design, but for the plainer reason: **no constant
+works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes both S2s four
+times slower than necessary. `esp32flash.py` negotiates rather than assumes.
+
+`n` is small — three interfaces, and only USB-OTG has two boards. Treat the
+table as a measured pattern, not a law.
 
 Timing corroborates the mechanism. Against the 10-bits-per-byte serial framing
 model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted and the ESP8266
