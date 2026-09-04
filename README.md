@@ -116,7 +116,7 @@ what the tools actually recorded.
 | Partitions read | 4 | 6 | **0** — no such table |
 | **Max read baud** (`verified`) | **230400** | **460800** | **230400** |
 | Backup | ✅ | ✅ | ✅ |
-| Flash · restore | ✅ | ✅ | **not exercised** |
+| Flash · restore | ✅ | ✅ | restore ✅ *(byte-exact)* |
 | Console over USB | ✅ | ❌ *(see below)* | n/a — UART *is* the console |
 | Profile | `e072a1fb9c5c` | `d4f98d661364` | `bcddc2246e97` |
 
@@ -188,12 +188,20 @@ both begin with `esp`. Its `usb_product` is `USB2.0-Serial`: the *bridge chip's*
 generic string, naming neither the board nor the SoC, unlike the S2's
 `QT Py ESP32-S2`.
 
-> **Scope: ESP8266 support stops at identification and backup.** There is no IDF
-> target, no ESP32-style partition table, and no app descriptor, so those
-> sections are empty rather than wrong — the pipeline degrades stage by stage.
-> Flashing and restoring an ESP8266 use different esptool semantics that have
-> **not** been exercised here, and building for one needs ESP8266_RTOS_SDK, not
-> ESP-IDF. Treat it as a probe-and-back-up target, not a supported build target.
+> **Scope: ESP8266 support stops at identification, backup and restore.** There
+> is no IDF target, no ESP32-style partition table, and no app descriptor, so
+> those sections are empty rather than wrong — the pipeline degrades stage by
+> stage. Building for one needs ESP8266_RTOS_SDK, not ESP-IDF, so there is no
+> `idf.py flash` path here and none is claimed. Treat it as a probe, back-up
+> and restore target, not a build target.
+
+`restore` was exercised and verified **byte-exact**: 4,194,304 bytes read back
+after the write hashed identically to the backup. Notably cleaner than the
+ESP32-S2, whose restore left 50 bytes differing in `nvs` because tinyuf2 wrote
+its state on boot. This board reboots after a restore too and comes back
+identical, so whatever it runs does not write flash at startup — which
+retroactively confirms the S2's delta was firmware doing its job, not a restore
+defect.
 
 ### Not validated
 
