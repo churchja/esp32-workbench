@@ -1,0 +1,20 @@
+# ESP32-S2 (USB-OTG), 4MB flash — e.g. Adafruit QT Py ESP32-S2
+#
+# Derived from boards/d4f98d661364.yaml (probed 2026-09-04).
+#
+# The load-bearing line is CONFIG_ESP_CONSOLE_USB_CDC=y. Without it an S2 has
+# no console over USB at all: it has no USB-Serial/JTAG peripheral, so IDF's
+# secondary-console default is unavailable. Firmware flashed without it runs
+# fine, prints to UART pins, and presents NO USB device — the board disappears
+# from /dev and looks dead. It is recovered with BOOT+RESET, not a reflash.
+
+CONFIG_ESP_TASK_WDT_INIT=n
+CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# Flash size from the probed profile, not IDF's 2MB default.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Console over native USB-OTG. Required on S2; harmless to omit on
+# USB-Serial/JTAG parts, which get a secondary console automatically.
+CONFIG_ESP_CONSOLE_USB_CDC=y

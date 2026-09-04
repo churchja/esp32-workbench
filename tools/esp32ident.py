@@ -722,6 +722,27 @@ def merge_profile(old, new):
         if k not in new_id:
             new_id[k] = v
 
+    # NEVER DOWNGRADE PROVENANCE.
+    #
+    # A probe that cannot reach the chip still synthesises some fields from the
+    # USB descriptor -- correctly tagged `inferred`. Without this guard the
+    # merge kept that guess and discarded the `probed` value from an earlier
+    # successful run, because its only rule was "fill in what is absent".
+    #
+    # Observed: a UF2-mode probe of a QT Py ESP32-S2 turned
+    #     mac: d4:f9:8d:66:13:64 [probed]   into   [inferred]
+    # A failed probe must never weaken what a successful one established.
+    # PROVENANCE_ORDER already ranks the levels; use it.
+    rank = {name: n for n, name in enumerate(PROVENANCE_ORDER)}
+    for k, old_fact in old_id.items():
+        new_fact = new_id.get(k)
+        if not (isinstance(old_fact, dict) and isinstance(new_fact, dict)):
+            continue
+        old_r = rank.get(old_fact.get("provenance"), -1)
+        new_r = rank.get(new_fact.get("provenance"), -1)
+        if old_r > new_r:
+            new_id[k] = old_fact
+
     # "Newer wins" is wrong for a few USB fields, because a re-probe may simply
     # be seeing the board in a DIFFERENT MODE rather than seeing it better.
     #

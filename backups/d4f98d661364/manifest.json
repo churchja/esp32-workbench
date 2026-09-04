@@ -1,0 +1,16 @@
+{
+  "mac": "d4:f9:8d:66:13:64",
+  "backups": [
+    {
+      "file": "full-20260904T213652Z-4194304.bin",
+      "sha256": "f398a9161d102baf3c6edc92d9639fffbb7f4141337e829677b184d1cd886871",
+      "bytes": 4194304,
+      "created": "2026-09-04T21:37:25.120753+00:00",
+      "chip": "ESP32-S2FNR2 (revision v0.0)",
+      "read_seconds": 32.9,
+      "baud": 460800,
+      "esptool_version": "5.2.0"
+    }
+  ],
+  "chip": "ESP32-S2FNR2 (revision v0.0)"
+}

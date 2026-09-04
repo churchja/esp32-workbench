@@ -282,6 +282,44 @@ m3 = merge_profile(
 check("a newly-seen MAC-shaped serial is kept",
       m3["identity"]["usb_serial_number"]["value"], "d4:f9:8d:66:13:64")
 
+
+print("\nmerge: a failed probe must never weaken a measured fact")
+
+# Real regression: a UF2-mode probe of the QT Py ESP32-S2 could not reach the
+# chip, synthesised mac from the USB serial as `inferred`, and the merge kept
+# THAT over the `probed` value an earlier successful probe had established.
+GOOD = {"identity": {
+    "mac": {"value": "d4:f9:8d:66:13:64", "provenance": "probed"},
+    "chip_family": {"value": "ESP32-S2FNR2", "provenance": "probed"},
+}}
+FAILED = {"identity": {
+    "mac": {"value": "d4:f9:8d:66:13:64", "provenance": "inferred"},
+}}
+m = merge_profile(GOOD, FAILED)
+check("probed mac is NOT downgraded to inferred",
+      m["identity"]["mac"]["provenance"], "probed")
+check("probed field absent from the failed probe survives",
+      m["identity"]["chip_family"]["provenance"], "probed")
+
+# ...but a genuine UPGRADE must still be taken.
+m2 = merge_profile(FAILED, GOOD)
+check("inferred IS upgraded to probed by a good probe",
+      m2["identity"]["mac"]["provenance"], "probed")
+
+# verified outranks probed; a re-probe must not knock it back down.
+m3 = merge_profile(
+    {"identity": {"x": {"value": 1, "provenance": "verified"}}},
+    {"identity": {"x": {"value": 1, "provenance": "probed"}}})
+check("verified is not downgraded to probed",
+      m3["identity"]["x"]["provenance"], "verified")
+
+# equal rank -> the fresher observation wins
+m4 = merge_profile(
+    {"identity": {"y": {"value": "old", "provenance": "probed"}}},
+    {"identity": {"y": {"value": "new", "provenance": "probed"}}})
+check("equal provenance keeps the newer value",
+      m4["identity"]["y"]["value"], "new")
+
 print()
 if FAIL:
     print(f"{len(FAIL)} FAILURE(S): {', '.join(FAIL)}")

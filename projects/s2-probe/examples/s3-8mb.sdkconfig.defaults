@@ -1,0 +1,30 @@
+# ESP32-S3, 8MB flash / 8MB PSRAM, native USB (VID:PID 303a:1001)
+#
+# Validated on real hardware 2026-09-04 against MAC e0:72:a1:fb:9c:5c
+# (see boards/e072a1fb9c5c.yaml). Built, flashed, ran, and restored
+# byte-identically on this exact configuration.
+#
+# Copy over templates/idf-base/sdkconfig.defaults for a comparable board:
+#   cp templates/idf-base/examples/s3-8mb.sdkconfig.defaults \
+#      projects/<name>/sdkconfig.defaults
+#
+# NOTE the PSRAM caveat below -- this config does NOT enable it, which is
+# why the probe firmware reports 'PSRAM: none usable' on a board whose
+# eFuse advertises 8MB. That disagreement is intentional and is exactly
+# what the probe exists to surface.
+
+CONFIG_ESP_TASK_WDT_INIT=n
+CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# Flash size from the PROBED profile, not IDF's 2MB default.
+# Without this the bootloader header and partition table are sized for
+# a quarter of the available flash.
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+# PSRAM is present in silicon (eFuse: 'Embedded PSRAM 8MB (AP_3v3)') but
+# deliberately NOT enabled here -- the probe firmware drives nothing and
+# does not need it. Uncomment for real work on this board:
+# CONFIG_SPIRAM=y
+# CONFIG_SPIRAM_MODE_QUAD=y
+# CONFIG_SPIRAM_SPEED_80M=y

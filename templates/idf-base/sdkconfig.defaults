@@ -11,10 +11,29 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 # reason a native-USB board (303a:1001, no UART bridge) still prints over USB
 # -- output goes to both interfaces.
 #
-# So do NOT "fix" this to CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y for native-USB
-# parts: that would DISABLE UART output and break bridge boards, to solve a
-# problem that does not exist. If a board is silent after flashing, check
-# CONFIG_ESP_CONSOLE_SECONDARY_* is still enabled before changing the primary.
+# CRITICAL: that secondary console only exists on parts with USB-Serial/JTAG.
+#
+# Verified the hard way on an Adafruit QT Py ESP32-S2. soc_caps.h for esp32s2
+# declares only SOC_USB_OTG_SUPPORTED -- there is no USB-Serial/JTAG peripheral,
+# so ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG is unavailable and the build gets NO
+# secondary console. Flashing this template unmodified produced firmware that
+# ran correctly, printed to UART pins nothing was attached to, and brought up
+# no USB device at all. The board vanished from /dev and looked bricked.
+#
+# Pick by the probed profile's identity.usb_mode:
+#
+#   usb_mode: USB-Serial/JTAG   (S3, C3, C6, C5, H2, P4)
+#       leave this file alone -- the secondary console covers you.
+#
+#   usb_mode: USB-OTG           (S2, and ESP32-S2 boards generally)
+#       you MUST add:  CONFIG_ESP_CONSOLE_USB_CDC=y
+#       otherwise the board is silent AND invisible over USB after boot.
+#
+#   bridge board (CH340/CP210x/FTDI, classic ESP32)
+#       leave this file alone -- UART is the real console.
+#
+# Recovery if you flash a USB-OTG board without USB CDC: hold BOOT, tap RESET
+# to reach ROM download mode, then restore the backup the gate made you take.
 
 # Flash size MUST come from the probed profile, not from IDF's default.
 #
