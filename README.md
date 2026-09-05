@@ -151,7 +151,11 @@ silently overwritten.
 **The four S3 rows carry two further lessons**, and they are different in kind.
 
 *Silicon can differ under one `set-target`.* The devkit and the LilyGo have 8MB
-PSRAM; neither Stamp has any. The LilyGo also carries **16MB** of flash, double
+PSRAM; neither Stamp nor the Capsule has any. The eFuse says so in words —
+`Embedded PSRAM 8MB` on three boards, `Embedded Flash 8MB` on the three M5Stack
+ones — and it **names the flash vendor**, agreeing with the JEDEC id read
+separately: `(XMC)` against `0x20` on the Capsule, `(GD)` against `0xc8` on the
+Stamp S3. Two independent readings of one fact from different parts of the chip. The LilyGo also carries **16MB** of flash, double
 every other board here. `set-target` is `esp32s3` for all four, so a build
 config valid on one can mismanage memory *or overrun flash* on another.
 `chip_features` and `flash_size` are read from the silicon rather than inferred
@@ -171,6 +175,22 @@ partner slot to buy a larger image and filesystem. Coherent for a tool storing
 captures and scripts, but it means no A/B rollback, so reflashing must go
 through the ROM bootloader. Reading the layout tells you what a board is *for*,
 not merely what it is.
+
+The **M5Stack Capsule** turned that comparison into a controlled one. Three
+M5Stack boards, and the layouts split against the hardware rather than with it:
+
+| Board | Flash vendor | `partition_table_md5` |
+|---|---|---|
+| M5 Stamp S3 | GigaDevice `0xc8` | `467eb896e29d…` |
+| **Capsule** | **XMC `0x20`** | **`467eb896e29d…`** — identical |
+| Cardputer ADV | XMC `0x20` | `d179fad57629…` — different |
+
+Different silicon, same table; same silicon, different table. The variable that
+tracks is **which firmware shipped**, and nothing else. Two products sharing a
+vendor's stock layout collide exactly; one that was reflashed with Bruce
+diverges. This is the sharpest available demonstration that a partition table is
+not a hardware fingerprint — a lesson that cost real effort to learn on the
+LilyGo, where the table was read as identifying and was not.
 
 Three mechanisms had to cooperate for the QT Py pair, each verified in passing:
 the USB-serial fallback keyed B's first (failed) probe correctly and its derived
@@ -520,6 +540,20 @@ Nor does anything else the probe collects, and this generalises:
 **Those three identify a *build*, not a board.** On the other six they happened
 to correlate with one, which is a different thing and easy to mistake for the
 same thing.
+
+The **Capsule proved it without being asked to.** Its app descriptor is
+byte-identical to the LilyGo's — same project, same IDF version, same build date
+**and the same build second**:
+
+```
+arduino-lib-builder | esp-idf: v4.4.7 38eeba213a | Mar  5 2024 12:12:53
+```
+
+Two unrelated vendors, an M5Stack device and a LilyGO one, shipping the same
+`arduino-lib-builder` artifact. Their ELF hashes differ (`a2d0f822…` vs
+`61d714e4…`), so the *applications* are not the same — only the stamp collides.
+Which is the whole point: a field that two different products can share to the
+second is not an identifier, however specific it looks.
 
 Five source lanes were searched — LilyGO's repos, the ESP Component Registry,
 `esp-bsp`, panel drivers, and the schematics. Results, recorded in the profile
