@@ -11,6 +11,7 @@ this file's logic had a test.
 Run:  python3 tools/test_flash.py
 """
 import contextlib
+import hashlib
 import inspect
 import io
 import json
@@ -241,6 +242,131 @@ check("and still carries an attempts list",
 check("no entry is written without the marker key",
       all(k in entry for k in ("read_seconds", "ladder_seconds", "attempts")),
       True)
+
+
+print("\nevery write path forwards --after and --baud to esptool")
+
+# These three functions had NO tests, which is exactly why the --after bug
+# survived here after being fixed in backup. An option that is parsed, accepted
+# and then dropped is worse than one that does not exist: the operator is told
+# nothing and gets the opposite behaviour. Measured consequence -- a restore run
+# with --after no-reset hard-reset a Satellite1 anyway, its firmware booted and
+# wrote 65 bytes to nvs, and the delta read as firmware behaviour until the
+# source was read.
+
+
+class RecordingEsp(FakeEsp):
+    version = "5.2.0-fake"
+
+    def run(self, port, subcmd, *args, **kw):
+        rc, so, se = super().run(port, subcmd, *args, **kw)
+        if subcmd == "write-flash" and len(args) >= 2 and os.path.isdir(
+                os.path.dirname(args[1]) or "."):
+            pass
+        return rc, so, se
+
+
+def make_board(tmp, mac="aa:bb:cc:dd:ee:ff", payload=b"\x00" * 4096):
+    """A board dir with one backup whose sha256 matches, so the gate passes."""
+    d = os.path.join(tmp, mac.replace(":", ""))
+    os.makedirs(d, exist_ok=True)
+    name = "full-test-4096.bin"
+    with open(os.path.join(d, name), "wb") as fh:
+        fh.write(payload)
+    digest = hashlib.sha256(payload).hexdigest()
+    with open(os.path.join(d, "manifest.json"), "w") as fh:
+        json.dump({"mac": mac, "backups": [{
+            "file": name, "sha256": digest, "bytes": len(payload),
+            "created": "2026-09-05T00:00:00+00:00"}]}, fh)
+    return d
+
+
+def drive(cmd, **overrides):
+    """Run one esp32flash command against a fake chip; return the esptool calls."""
+    tmp = tempfile.mkdtemp()
+    make_board(tmp)
+    real_backups, real_probe = esp32flash.BACKUPS, esp32flash.probe_silicon
+    esp32flash.BACKUPS = tmp
+    esp32flash.probe_silicon = lambda esp, port: SILICON
+    esp = RecordingEsp([(0, "")] * 4)
+
+    class A:
+        port, timeout, baud, after = "/dev/x", 60, None, "hard-reset"
+        yes, no_backup_i_accept_the_risk = True, False
+        file, image, address, size = None, None, "0x10000", None
+    a = A()
+    for k, v in overrides.items():
+        setattr(a, k, v)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            {"restore": esp32flash.cmd_restore,
+             "flash": esp32flash.cmd_flash,
+             "erase": esp32flash.cmd_erase}[cmd](esp, a)
+    finally:
+        esp32flash.BACKUPS, esp32flash.probe_silicon = real_backups, real_probe
+        shutil.rmtree(tmp, ignore_errors=True)
+    return [c for c in esp.calls if c["subcmd"] in ("write-flash", "erase-flash")]
+
+
+IMG = os.path.join(tempfile.mkdtemp(), "payload.bin")
+open(IMG, "wb").write(b"\xa5" * 2048)
+
+for cmd, extra in (("restore", {}), ("flash", {"image": IMG}), ("erase", {})):
+    calls = drive(cmd, after="no-reset", **extra)
+    check(f"{cmd} reaches esptool once", len(calls), 1)
+    check(f"{cmd} forwards --after no-reset", calls[0].get("after"), "no-reset")
+
+    calls = drive(cmd, after="hard-reset", **extra)
+    check(f"{cmd} forwards --after hard-reset", calls[0].get("after"), "hard-reset")
+
+    calls = drive(cmd, baud=921600, after="no-reset", **extra)
+    check(f"{cmd} forwards --baud", calls[0].get("baud"), 921600)
+
+# The specific regression: esptool's OWN default is hard-reset, so a dropped
+# after= is not a missing flag, it is the opposite behaviour applied silently.
+calls = drive("restore", after="no-reset")
+check("a dropped after= would read as None, not as no-reset",
+      calls[0].get("after") is not None, True)
+
+
+print("\nevery write path states what the board is doing afterwards")
+
+# report_board_state existed but only backup called it. After a restore, flash
+# or erase the port may have moved or the board may be parked, and the operator
+# is the one who has to know.
+def stdout_of(cmd, **kw):
+    tmp = tempfile.mkdtemp()
+    make_board(tmp)
+    real_backups, real_probe = esp32flash.BACKUPS, esp32flash.probe_silicon
+    esp32flash.BACKUPS = tmp
+    esp32flash.probe_silicon = lambda esp, port: SILICON
+
+    class A:
+        port, timeout, baud, after = "/dev/x", 60, None, "hard-reset"
+        yes, no_backup_i_accept_the_risk = True, False
+        file, image, address, size = None, None, "0x10000", None
+    a = A()
+    for k, v in kw.items():
+        setattr(a, k, v)
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(err):
+            {"restore": esp32flash.cmd_restore,
+             "flash": esp32flash.cmd_flash,
+             "erase": esp32flash.cmd_erase}[cmd](
+                 RecordingEsp([(0, "")] * 4), a)
+    finally:
+        esp32flash.BACKUPS, esp32flash.probe_silicon = real_backups, real_probe
+        shutil.rmtree(tmp, ignore_errors=True)
+    return err.getvalue()
+
+for cmd, extra in (("restore", {}), ("flash", {"image": IMG}), ("erase", {})):
+    out = stdout_of(cmd, after="no-reset", **extra)
+    check(f"{cmd} says the board is parked", "DOWNLOAD MODE" in out, True)
+    out = stdout_of(cmd, after="hard-reset", **extra)
+    check(f"{cmd} warns the port may vanish after a reset",
+          "may no longer exist" in out, True)
 
 
 print("\nfailure classification")

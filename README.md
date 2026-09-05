@@ -68,7 +68,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 411 assertions across 9 files; no hardware needed |
+| `tools/test_*.py` | 430 assertions across 9 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
@@ -362,6 +362,9 @@ find:
   single manual BOOT+RESET the pipeline depended on
 - the same default in `backup` re-enumerated the board mid-workflow, so the
   `idf.py flash` that followed opened a port that no longer existed
+- **and the same default again in `restore`, `flash` and `erase`**, found five
+  months later — the earlier fix was applied where the symptom appeared rather
+  than everywhere the pattern lived (see below)
 - back-to-back esptool calls contended for the USB CDC endpoint
 - a failed probe **downgraded** a `probed` MAC to `inferred`, because the merge
   only filled in absent fields — a guess overwriting a measurement
@@ -653,7 +656,47 @@ on the other eight boards. Restoring the pre-update image would put back
 recovery by a different route than "restore the image", and worth knowing before
 relying on one.
 
-### What identification cannot reach
+#### An option that is ignored is worse than one that does not exist
+
+`--after` was found and fixed once, in `backup`. It was still live in
+**`restore`, `flash` and `erase`**, because the fix went where the symptom
+appeared rather than everywhere the pattern occurred.
+
+The consequence was measured, not theorised. Verifying the Satellite1's restore,
+the board was parked in download mode at every step precisely so nothing would
+boot — and the read-back still showed **65 bytes changed in `nvs`**. Two
+consecutive `nvs` reads came back identical, ruling out esptool connects as the
+cause. Reading the source explained it:
+
+```python
+rc, so, se = esp.run(port, "write-flash", "0x0", path,
+                     timeout=args.timeout, baud=args.baud)   # no after=
+```
+
+`--after no-reset` was parsed, accepted, and dropped. esptool applied its own
+default of `hard-reset`, the board booted, ESPHome wrote to `nvs`. **The delta
+read as firmware behaviour until the code was read** — which is the damage a
+silently-ignored option does. It does not fail; it produces the opposite
+outcome and lets you attribute it to something else.
+
+`flash` and `erase` dropped `--baud` too, so those ran at esptool's default rate
+whatever was asked for.
+
+Three things were true of all three functions and of none of `backup`:
+
+- **They had no tests at all** — which is why a fix to `backup` did not travel.
+  Nineteen assertions now cover them, and reverting any part of the fix fails
+  between one and three of them.
+- **They never called `report_board_state()`.** The function existed and only
+  `backup` used it, so after a restore, flash or erase nobody was told whether
+  the port had moved or the board was parked — the exact information whose
+  absence caused the original failure.
+- **`erase` is where it matters most.** An erased USB-OTG part has no firmware
+  left to bring USB up, so it disappears entirely and needs BOOT+RESET.
+  Measured three times on the Flipper module. Saying so is the difference
+  between an expected outcome and an apparent brick.
+
+## What identification cannot reach
 
 Six boards were identified down to flash vendor and partition layout. The
 seventh stops sooner, and the reason is worth recording because it is a limit

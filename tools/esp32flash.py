@@ -458,11 +458,19 @@ def cmd_restore(esp, args):
             f"  Port:     {port}\n\nRe-run with --yes.", code=5)
 
     info(f"Restoring {entry['file']} to {chip} @ {mac}")
+    # after= is not optional. Omitting it lets esptool apply its OWN default of
+    # hard-reset, so --after no-reset is accepted on the command line and then
+    # silently discarded -- the board reboots, its firmware runs, and it writes
+    # to nvs. That is not hypothetical: it put 65 bytes into a Satellite1's nvs
+    # during a restore verification that had explicitly asked for no-reset, and
+    # the delta looked like firmware behaviour until the code was read. An
+    # ignored option is worse than an absent one.
     rc, so, se = esp.run(port, "write-flash", "0x0", path,
-                         timeout=args.timeout, baud=args.baud)
+                         timeout=args.timeout, baud=args.baud, after=args.after)
     if rc != 0:
         die("write-flash failed:\n" + (so + se)[-1500:])
     info("Restore complete.")
+    report_board_state(args.after, port)
     return 0
 
 
@@ -475,11 +483,14 @@ def cmd_flash(esp, args):
                    action=f"write {os.path.basename(args.image)} to flash",
                    address=args.address,
                    length=f"{os.path.getsize(args.image)} bytes")
+    # Same contract as restore: forward both. Dropping baud here also meant
+    # --baud was silently ignored on every flash.
     rc, so, se = esp.run(port, "write-flash", args.address, args.image,
-                         timeout=args.timeout)
+                         timeout=args.timeout, baud=args.baud, after=args.after)
     if rc != 0:
         die("write-flash failed:\n" + (so + se)[-1500:])
     info("Flash complete.")
+    report_board_state(args.after, port)
     return 0
 
 
@@ -487,11 +498,17 @@ def cmd_erase(esp, args):
     port = args.port
     mac, _size, chip = board_identity(esp, port)
     require_backup(mac, chip, args, action="ERASE THE ENTIRE FLASH")
-    rc, so, se = esp.run(port, "erase-flash", timeout=args.timeout)
+    rc, so, se = esp.run(port, "erase-flash", timeout=args.timeout,
+                         baud=args.baud, after=args.after)
     if rc != 0:
         die("erase-flash failed:\n" + (so + se)[-1500:])
     info("Erase complete. The board now has no firmware and will not boot "
          "until something is written.")
+    # An erased USB-OTG part (S2) cannot bring USB up at all -- there is no
+    # firmware left to do it -- so it vanishes entirely and needs BOOT+RESET.
+    # Measured three times on a Flipper Zero Wi-Fi Module. Saying so here is
+    # the difference between an expected outcome and an apparent brick.
+    report_board_state(args.after, port)
     return 0
 
 
