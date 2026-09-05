@@ -13,6 +13,12 @@ tools and a 150-assertion increase, until an audit found four defects at once:
   - "98 assertions across 4 files" against an actual 249 across 7
   - tools/doctor.py and tools/usbwatch.py absent
 
+A later audit found a fifth of the same kind: "It runs four layers" with a
+four-row table against a smoke.sh that has five. The missing row was the real
+ESP-IDF layer -- the only one exercising the PRIMARY framework and the gate
+path most flashing goes through, so the table undersold the suite by omitting
+its strongest layer. That claim is checked here now too.
+
 Every one is mechanically checkable, so none should have needed an audit.
 
 Run:  python3 tools/test_docs.py
@@ -48,6 +54,7 @@ def layout_section():
         return ""
 
 
+README_TEXT = open(README).read()
 SECTION = layout_section()
 # first column of each row: | `path` | description |
 LISTED = set(re.findall(r"^\|\s*`([^`]+)`\s*\|", SECTION, re.M))
@@ -122,6 +129,42 @@ check("chooser exists", bool(chooser), True)
 for t in re.findall(r"`(idf-base|idf-usb-console|pio-base)`", chooser):
     check(f"chooser names a real template: {t}",
           os.path.isdir(os.path.join(REPO, "templates", t)), True)
+
+print("\nthe smoke table matches smoke.sh")
+
+# smoke.sh names its layers with hdr "N. title"; the trailing hdr "result" has
+# no number, which is what distinguishes a layer from the summary line.
+SMOKE = open(os.path.join(REPO, "smoke.sh")).read()
+LAYERS = re.findall(r'^hdr "(\d+)\.\s*(.+?)"', SMOKE, re.M)
+check("smoke.sh declares numbered layers", len(LAYERS) > 0, True)
+
+# Scope to the "Is it working?" section so the board and restore tables
+# elsewhere in the README cannot satisfy the row regex by accident.
+try:
+    HOWTO = README_TEXT[README_TEXT.index("## Is it working?"):]
+    HOWTO = HOWTO[:HOWTO.index("\n## ", 1)] if "\n## " in HOWTO[1:] else HOWTO
+except ValueError:
+    HOWTO = ""
+check("the smoke section exists", bool(HOWTO), True)
+
+WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+         "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+m_layers = re.search(r"It runs (\w+) layers", HOWTO)
+check("the README states a layer count", bool(m_layers), True)
+if m_layers:
+    check("the stated layer count matches smoke.sh",
+          WORDS.get(m_layers.group(1).lower()), len(LAYERS))
+
+rows = re.findall(r"^\|\s*(\d+)\s*\|", HOWTO, re.M)
+check("the table has one row per layer", len(rows), len(LAYERS))
+check("the rows are numbered 1..N in order",
+      rows, [str(i) for i in range(1, len(LAYERS) + 1)])
+
+# A layer can be present and still be wrong about itself. The ESP-IDF row was
+# the one that went missing, and it is the one whose absence matters most.
+check("the ESP-IDF layer is named in the table",
+      bool(re.search(r"ESP-IDF", HOWTO)), True)
+
 
 # Deferred to the end: the claimed total covers every test file INCLUDING this
 # one, and this file's own count is only known once its checks have run. The +1
