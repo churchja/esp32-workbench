@@ -73,9 +73,16 @@ def validate(path):
 
     name = os.path.basename(path)
     logged = set()
+    # `tested` may name one field or a list of them. One physical test often
+    # verifies several facts at once -- lighting a panel proves its power pin,
+    # reset, clock, data, chip-select and DC line in a single observation --
+    # and forcing that into six near-identical entries buries the method in
+    # duplication rather than recording it once.
     for entry in prof.get("verification_log") or []:
         if isinstance(entry, dict) and entry.get("tested"):
-            logged.add(str(entry["tested"]))
+            t = entry["tested"]
+            for item in (t if isinstance(t, list) else [t]):
+                logged.add(str(item))
 
     for section in FACT_SECTIONS:
         node = prof.get(section)

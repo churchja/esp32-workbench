@@ -118,6 +118,48 @@ else:
 # ---------------------------------------------------------------------------
 # merge_profile -- re-probing must not destroy researched knowledge
 # ---------------------------------------------------------------------------
+# One physical test often verifies several facts at once -- lighting a panel
+# proves its power pin, reset, clock, data, chip-select and DC line in a single
+# observation. `tested` therefore accepts a list, so the method is recorded once
+# rather than copied into six near-identical entries.
+run("a list in 'tested' satisfies every field it names", """
+schema_version: 1
+identity:
+  chip: {value: ESP32-S3, provenance: probed}
+pinmap:
+  lcd_pwr: {value: 38, provenance: verified}
+  lcd_dc: {value: 7, provenance: verified}
+verification_log:
+- date: '2026-09-05'
+  tested: [pinmap.lcd_pwr, pinmap.lcd_dc]
+  result: verified
+""")
+
+run("a field missing from the list is still caught", """
+schema_version: 1
+identity:
+  chip: {value: ESP32-S3, provenance: probed}
+pinmap:
+  lcd_pwr: {value: 38, provenance: verified}
+  lcd_dc: {value: 7, provenance: verified}
+verification_log:
+- date: '2026-09-05'
+  tested: [pinmap.lcd_pwr]
+  result: verified
+""", want_error_substr="lcd_dc")
+
+run("a plain string still works", """
+schema_version: 1
+identity:
+  chip: {value: ESP32-S3, provenance: probed}
+pinmap:
+  lcd_pwr: {value: 38, provenance: verified}
+verification_log:
+- date: '2026-09-05'
+  tested: pinmap.lcd_pwr
+  result: verified
+""")
+
 print("\nprofile merge on re-identify")
 
 from esp32ident import merge_profile  # noqa: E402

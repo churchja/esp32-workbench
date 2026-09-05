@@ -68,7 +68,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 438 assertions across 9 files; no hardware needed |
+| `tools/test_*.py` | 441 assertions across 9 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
@@ -834,9 +834,9 @@ an init sequence its wiring does not accept, every ESP32-side call returns
 success, and the screen stays dark. The driver would need `rm67162_spi_cmd`
 added; that is a bounded piece of work, not a config change.
 
-Two things the attempt produced anyway. The vendor block gave a pin no other
-source had — **TE on GPIO9** — and settled that there is **no DC pin**
-(`BOARD_NONE_PIN`), correcting a reading in this repo that GPIO7 "becomes DC".
+**It works now, and the fix was in a layer none of that touched.** See below.
+
+The vendor block also gave a pin no other source had — **TE on GPIO9**.
 
 And a real defect in the example, fixed in `projects/lilygo-amoled-demo`: its
 `spi_bus_config_t` compound literal leaves `data4`–`data7_io_num`
@@ -846,6 +846,47 @@ the S3's BOOT strapping pin. The app drove it low and the board came up in
 `spi_common: GPIO 0 is conflict` warning at init says exactly this; it was
 dismissed here as benign once, which it is not. Pinning the unused lines to `-1`
 fixed it, confirmed by the warning disappearing from a power-on boot log.
+
+### The panel lights: it was the transport, not the init
+
+Six configuration permutations failed — bus width, init sequence, the GPIO0
+conflict, bypassing LVGL, power polarity, D2/D3 — and every one of them sat in a
+layer **above** a transport that could never have worked.
+
+`LilyGo_AMOLED.cpp::writeCommand()` settled it in one glance:
+
+```c
+if (spiDev) {                                 // the Plus's SPI path
+    digitalWrite(boards->display.d1, LOW);    // GPIO7 LOW  = COMMAND
+    spiDev->write(cmd);
+    digitalWrite(boards->display.d1, HIGH);   // GPIO7 HIGH = DATA
+```
+
+**GPIO7 is a DC pin.** This board is conventional 4-wire SPI. The driver's
+transport embeds control bytes in a 32-bit command word and uses no DC line —
+its readme says so plainly. Those are different protocols on the same wires, and
+no pin value, bus width, polarity or init sequence bridges them.
+
+`projects/lilygo-amoled-demo` now drives it: `dc_gpio_num = 7`,
+`lcd_cmd_bits = 8`, LilyGO's `rm67162_spi_cmd` sequence, regular SPI at 40MHz.
+Full-screen white, red, green and blue confirmed on the panel, painted directly
+before `lv_init()` so nothing in LVGL could explain the result either way. The
+pin map is now **`verified`** on hardware: PWR 38, RST 17, SCK 47, MOSI 18,
+CS 6, DC 7.
+
+**The wrong correction cost most of the time.** An earlier reading here was that
+GPIO7 "becomes DC" — which was right. It was then overturned, and the overturning
+written into this file and the profile, because the struct's separate `DC` field
+reads `BOARD_NONE_PIN`. That field is unused on this path; LilyGO drives
+`display.d1` directly. **The struct said one thing and the code consuming the
+struct said another**, and the struct was believed.
+
+Two lessons worth more than the pin map. `esp_lcd_panel_io_spi` accepts both
+framings through one API — `lcd_cmd_bits = 32` with no DC, or `8` with a DC pin.
+Both compile, both return `ESP_OK`, and **nothing on this bus reads back**, so
+the wrong choice is silent rather than wrong. And when a second attempt in a
+layer fails, that is the signal to go read the layer below, not to permute the
+one you are in.
 
 **A note on debugging a self-emissive panel.** An AMOLED has no backlight, so
 *unpowered* and *powered, initialised, drawing all-zero pixels* are the same

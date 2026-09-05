@@ -24,3 +24,21 @@ CONFIG_LV_BUILD_EXAMPLES=n
 # LilyGo_AMOLED.h's RM67162_AMOLED_SPI config. Pins are otherwise identical.
 CONFIG_HWE_DISPLAY_SPI_SPI=y
 CONFIG_HWE_DISPLAY_SPI_FREQUENCY=40000000
+CONFIG_RM67162_USE_LILYGO_SPI_INIT=y
+
+# Probe: invert the panel power pin. Three sources agree GPIO38 is active HIGH,
+# but all three describe the NON-TOUCH board -- the exact assumption that has
+# failed repeatedly on this Plus. One variable, one build.
+# Reverted to 1: three sources agree active-high, and the inverted probe
+# changed nothing. Testing D2/D3 alone.
+CONFIG_HWE_DISPLAY_PWR_ON_LEVEL=1
+
+# The Plus does not wire D2/D3 to the display: LilyGo_AMOLED.h's
+# RM67162_AMOLED_SPI sets both to -1. Leaving them at the QSPI defaults (48, 5)
+# claims two pins the panel is not on and forces a 4-lane bus.
+CONFIG_HWE_DISPLAY_SPI_D2=-1
+CONFIG_HWE_DISPLAY_SPI_D3=-1
+
+# The Plus is conventional 4-wire SPI: GPIO7 is DC, not a data lane.
+# This is a TRANSPORT change -- the reason six config permutations all failed.
+CONFIG_RM67162_USE_DC_PIN=y

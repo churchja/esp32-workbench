@@ -108,7 +108,14 @@ void app_main(void)
 	ESP_ERROR_CHECK(spi_bus_initialize(SPIx_HOST,
 		& (spi_bus_config_t) {
 			.data0_io_num = CONFIG_HWE_DISPLAY_SPI_D0,
+#if CONFIG_RM67162_USE_DC_PIN
+			/* GPIO7 is the DC line here, not a data lane -- the
+			 * panel IO drives it. Claiming it as data1 as well
+			 * would hand the same pin to two owners. */
+			.data1_io_num = -1,
+#else
 			.data1_io_num = CONFIG_HWE_DISPLAY_SPI_D1,
+#endif
 			.sclk_io_num = CONFIG_HWE_DISPLAY_SPI_SCK,
 			.data2_io_num = CONFIG_HWE_DISPLAY_SPI_D2,
 			.data3_io_num = CONFIG_HWE_DISPLAY_SPI_D3,
@@ -127,7 +134,17 @@ void app_main(void)
 			.max_transfer_sz = SEND_BUF_SIZE + 8,
 			.flags = SPICOMMON_BUSFLAG_MASTER
 				| SPICOMMON_BUSFLAG_GPIO_PINS
-				| SPICOMMON_BUSFLAG_QUAD,
+#if !defined(CONFIG_HWE_DISPLAY_SPI_SPI)
+				/* QUAD is unconditional upstream, which forces
+				 * a 4-lane bus even when the panel IO is
+				 * configured single-line. On the Plus, D2/D3
+				 * are not wired to the display at all
+				 * (RM67162_AMOLED_SPI sets both to -1), so
+				 * claiming them makes the bus disagree with
+				 * the panel. */
+				| SPICOMMON_BUSFLAG_QUAD
+#endif
+				,
 		},
 		SPI_DMA_CH_AUTO
 	));
@@ -138,7 +155,16 @@ void app_main(void)
 	       	& (esp_lcd_panel_io_spi_config_t) {
 			.cs_gpio_num = CONFIG_HWE_DISPLAY_SPI_CS,
 			.pclk_hz = CONFIG_HWE_DISPLAY_SPI_FREQUENCY,
+#if CONFIG_RM67162_USE_DC_PIN
+			/* Conventional 4-wire SPI: plain 8-bit commands with
+			 * esp_lcd toggling DC, matching how LilyGO drives the
+			 * Plus. lcd_cmd_bits 32 belongs to the no-DC framing. */
+			.dc_gpio_num = CONFIG_HWE_DISPLAY_SPI_D1,
+			.lcd_cmd_bits = 8,
+#else
+			.dc_gpio_num = -1,
 			.lcd_cmd_bits = 32,
+#endif
 			.lcd_param_bits = 8,
 #if defined(CONFIG_HWE_DISPLAY_SPI_SPI)
 			.spi_mode = 0,
@@ -175,6 +201,52 @@ void app_main(void)
 	// Rotate 90 degrees clockwise:
 	ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_handle, true));
 	ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, true, false));
+	/* ---- SOLID FILL BRING-UP TEST -------------------------------------
+	 * The discriminating test for a self-emissive panel. An AMOLED has no
+	 * backlight, so "unpowered" and "powered, initialised, drawing black"
+	 * look identical -- a blank LVGL demo tells you nothing. Painting the
+	 * whole panel one bright colour removes the graphics stack from the
+	 * question: if this lights, the pin map, bus and init are all correct
+	 * and the fault is above the driver. If it does not, the panel is not
+	 * being driven at all.
+	 * Runs BEFORE lv_init() so nothing LVGL does can be blamed either way.
+	 */
+	ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
+	{
+		const int W = CONFIG_HWE_DISPLAY_WIDTH;
+		const int STRIPE = 16;              /* rows per transfer */
+		uint16_t *row = heap_caps_malloc(W * STRIPE * sizeof(uint16_t),
+						 MALLOC_CAP_DMA);
+		if (row) {
+			const uint16_t colours[] = {
+				0xFFFF,  /* white */
+				0xF800,  /* red   */
+				0x07E0,  /* green */
+				0x001F,  /* blue  */
+			};
+			for (int c = 0; c < 4; c++) {
+				for (int i = 0; i < W * STRIPE; i++)
+					row[i] = colours[c];
+				ESP_LOGI(TAG, "SOLID FILL test: colour %d of 4",
+					 c + 1);
+				for (int y = 0; y < CONFIG_HWE_DISPLAY_HEIGHT;
+						y += STRIPE) {
+					int y2 = y + STRIPE;
+					if (y2 > CONFIG_HWE_DISPLAY_HEIGHT)
+						y2 = CONFIG_HWE_DISPLAY_HEIGHT;
+					ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(
+						panel_handle, 0, y, W, y2, row));
+				}
+				vTaskDelay(pdMS_TO_TICKS(2000));
+			}
+			heap_caps_free(row);
+			ESP_LOGI(TAG, "SOLID FILL test complete");
+		} else {
+			ESP_LOGE(TAG, "SOLID FILL test: could not allocate buffer");
+		}
+	}
+	/* -------------------------------------------------------------- */
+
 	// panel_handle is ready, now deal with lvgl
 	lv_init();
 	// H and W exchanged because it lies on its side after rotation

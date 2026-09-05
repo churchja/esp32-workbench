@@ -176,13 +176,10 @@ pinmap:
       the non-touch board -- see the pinmap research_queue entry.'
   lcd_sck:
     value: 47
-    provenance: unverified
+    provenance: verified
   lcd_d0_mosi:
     value: 18
-    provenance: unverified
-  lcd_d1_dc:
-    value: 7
-    provenance: unverified
+    provenance: verified
   lcd_d2:
     value: 48
     provenance: unverified
@@ -193,23 +190,32 @@ pinmap:
     note: QSPI only. Unused on this board's regular-SPI wiring (d3 = -1).
   lcd_cs:
     value: 6
-    provenance: unverified
+    provenance: verified
   lcd_rst:
     value: 17
-    provenance: unverified
+    provenance: verified
     note: Active HIGH per the driver example's RST_ACTIVE_LEVEL default.
   lcd_dc:
-    value: null
-    provenance: community
+    value: 7
+    provenance: verified
+    bus_position: 'Occupies the D1 lane in the QSPI wiring; on this board it is
+      the DC line and must NOT also be claimed as SPI data1.'
     source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
-    note: 'THERE IS NO DC PIN. RM67162_AMOLED_SPI sets the DC field to
-      BOARD_NONE_PIN; the //DC comment beside GPIO7 describes what that pin is
-      on a different wiring, not this one. Recorded because an earlier reading
-      of this repo concluded GPIO7 "becomes DC" on the Plus, which was wrong --
-      the no-DC protocol is correct here and the init sequence is what differs.'
+    note: 'GPIO7 IS THE DC PIN, proven on hardware -- the display only lit once
+      the transport toggled it. This entry previously read "THERE IS NO DC PIN",
+      which was a correction of a correct original reading and was itself the
+      error that cost roughly four hours.
+      What misled: RM67162_AMOLED_SPI sets its separate DC struct field to
+      BOARD_NONE_PIN, so the field was read as authoritative. It is not used on
+      this path. LilyGo_AMOLED.cpp::writeCommand() drives display.d1 -- GPIO7 --
+      directly: digitalWrite(d1, LOW) around the command byte, HIGH around the
+      data bytes. The //DC comment beside 7 in the struct was literal.
+      Lesson recorded because it generalises: the struct said one thing and the
+      code that CONSUMES the struct said another. Reading the consumer settled
+      in one glance what six configuration permutations could not.'
   lcd_pwr:
     value: 38
-    provenance: unverified
+    provenance: verified
     note: 'PANEL POWER ENABLE, on-level 1 (active high). The single most
       corroborated pin here: LilyGO''s Touch and Plus schematics label GPIO38
       OL_EN, and the driver example independently defaults HWE_DISPLAY_PWR to 38
@@ -479,6 +485,27 @@ board:
       for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-05'
+  tested: [pinmap.lcd_pwr, pinmap.lcd_rst, pinmap.lcd_sck, pinmap.lcd_d0_mosi,
+           pinmap.lcd_cs, pinmap.lcd_dc]
+  method: 'Drove the panel from ESP-IDF until it lit. Built the LilyGO SPI init
+    sequence and a DC-toggling transport into a vendored copy of
+    crosser/esp-lcd-panel-rm67162, then painted the full screen white, red,
+    green and blue directly via esp_lcd_panel_draw_bitmap -- deliberately before
+    lv_init(), so no LVGL behaviour could explain either outcome.'
+  result: verified
+  note: 'THE PANEL LIT. That verifies the whole display chain on this unit at
+    once: PWR 38 active-high, RST 17, SCK 47, MOSI 18, CS 6, DC 7, 40MHz,
+    SPI mode 0, and LilyGO''s rm67162_spi_cmd init sequence.
+    D2 48 / D3 5 stay unverified: they are recorded as NOT wired to the panel,
+    which is a different claim and one the working display does not test.
+    TE 9 and button 0 likewise untested.
+    SIX CONFIGURATION PERMUTATIONS FAILED BEFORE THIS. Bus width, init sequence,
+    GPIO0 conflict, graphics stack bypass, power polarity, and D2/D3 -- all in
+    layers ABOVE a transport that could never have worked. esp_lcd_panel_io_spi
+    accepts both framings through one API (lcd_cmd_bits 32 with no DC, or 8 with
+    a DC pin); both compile, both return ESP_OK, and nothing on this bus reads
+    back, so the wrong one is silent rather than wrong.'
 - date: '2026-09-05'
   tested: firmware_running
   method: 'Flashed LilyGO''s published factory image at 0x0 through the backup
