@@ -504,6 +504,21 @@ board:
       backups hold the AS-SHIPPED firmware, so a restore rolls back to that and
       loses the RTC driver; reflashing the published image takes seconds and its
       sha256 is a8939c043a738a139d0fad9849bbdab80331b3e1059832bfc0ccce9aaa364782.'
+  upstream_report:
+    value: crosser/esp-lcd-panel-rm67162#5
+    provenance: community
+    source: https://github.com/crosser/esp-lcd-panel-rm67162/issues/5
+    note: 'The DC-pin finding and both Kconfig-gated additions were reported to
+      the driver''s author on 2026-09-05. Filed as an issue rather than a pull
+      request because the component metadata points repository_info.url at the
+      author''s own cgit (www.average.org/cgit), so GitHub may be a mirror and a
+      PR could presume a workflow they do not use. Issue #2 on that repo is a
+      previously accepted adaptation to a different controller, so variant work
+      does get engaged with there.
+      The report states what was NOT tested: no QSPI board was available here,
+      so it is unproven that the change does not regress the boards the driver
+      was written for. Issue #1 there is a user reporting success on a Waveshare
+      1.91in module -- the exact configuration at risk.'
   bsp_component:
     value: none exists
     provenance: vendor_doc

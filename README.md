@@ -893,6 +893,17 @@ sequence, colour format, addressing and orientation, all verified on the board
 rather than read from a document. It began the night as *"no ESP-IDF support
 exists for this variant."*
 
+**Reported upstream:**
+[crosser/esp-lcd-panel-rm67162#5](https://github.com/crosser/esp-lcd-panel-rm67162/issues/5).
+The two additions live in `projects/lilygo-amoled-demo/components/`, each behind
+a Kconfig option defaulting **off**, so the existing code paths are byte-identical
+when they are not selected. The issue says plainly what was *not* tested: there
+is no QSPI board here, so it is unproven that this does not regress the boards
+the driver was written against — and issue #1 on that repo is a user reporting it
+working out of the box on a Waveshare 1.91", which is exactly the configuration
+at risk. "Both options default off" is an argument, not a test, and it is
+labelled as one.
+
 **The wrong correction cost most of the time.** An earlier reading here was that
 GPIO7 "becomes DC" — which was right. It was then overturned, and the overturning
 written into this file and the profile, because the struct's separate `DC` field
