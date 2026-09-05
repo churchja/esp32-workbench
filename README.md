@@ -406,6 +406,69 @@ drives no peripheral at all, which is what makes it safe on a board whose pin
 map is unverified; a USB device stack is a peripheral. Keeping them separate
 preserves that guarantee for every other board.
 
+### The first upgrade the gate was actually built for
+
+Every flash before this one was a test: write something, prove it ran, restore.
+The Satellite1 was the first time the promise was cashed in for real work —
+a firmware upgrade the operator wanted to **keep**. It went from Satellite1
+`v0.0.5-beta.1` (ESPHome 2024.11.2, IDF 4.4.8, Dec 2024) to `v0.2.0` (ESPHome
+2026.4.5, IDF 5.5.4, May 2026), about thirteen releases.
+
+The interesting part is what had to be checked first, because a vendor factory
+image is not a restore — it carries its **own partition table**, and writing one
+that disagrees with the board's silently strands whatever lived in the old
+layout.
+
+Three checks, in order, all before anything was written:
+
+1. **Parse the image's partition table and compare it entry-by-entry** against
+   the probed one. Identical offsets throughout; `nvs` differed only in size,
+   `0x6d000` → `0x70000` at the same `0xf90000` start — growing to fill the
+   flash, which does not invalidate existing entries.
+2. **Confirm the image's span.** 3,334,320 bytes written at `0x0` reaches
+   `0x32e0f0`. `nvs` at `0xf90000` is nowhere near it, so Wi-Fi credentials and
+   entity states were never at risk.
+3. **Confirm a verified backup existed** — which is the gate's job, and it said
+   so before allowing the write.
+
+Afterwards the board was re-probed rather than trusted: `app0` reads project
+`satellite1`, version `2026.4.5`, IDF `5.5.4`, built `May 28 2026 21:52:27`, and
+the flashed table matches the image byte-for-byte.
+
+**A check that looked like a test and was not.** The first attempt at step 1
+hashed the image's table with a hand-rolled md5 over the `0xff`-stripped region
+and compared it against the profile's `partition_table_md5`. Those are different
+computations over different byte ranges — the profile records the md5 record
+**ESP-IDF embeds in the table itself** (magic `EBEB`, covering only the bytes of
+real entries). The two numbers were never comparable, and confirming it after
+the fact showed the hand-rolled method returns `cc9a39b7…` where the tool
+reports `67654859…` for the very same bytes. The conclusion survived only
+because step 1 was then done properly by parsing. It belongs to the pattern
+catalogued in [the build log](docs/session-2026-09-04.md#1-checks-that-report-success-for-the-wrong-reason)
+— a check that cannot distinguish *"I compared them"* from *"I compared the
+wrong things."*
+
+**The validator caught the other half.** `board.firmware_running` was written
+with provenance `verified` and rejected:
+
+```
+ERROR d83bda407850.yaml: board.firmware_running claims 'verified'
+  but no verification_log entry tests it
+```
+
+Top provenance requires its method on the record. The rule fired on the person
+writing the profile, which is the only place it could usefully fire.
+
+**The one thing a backup here does not cover.** The Satellite1's XMOS XU316 has
+its **own SPI flash**, written by the ESP32 over SPI — `esptool` cannot see it,
+so the 16MB image does not contain it. It is not unrecoverable: the ESPHome
+build embeds an XMOS image and reflashes it on boot, so the co-processor follows
+whatever ESP32 firmware is running. But it means the guarantee is narrower than
+on the other eight boards. Restoring the pre-update image would put back
+`v0.0.5-beta.1`, which would then reflash the XMOS to *its* embedded version —
+recovery by a different route than "restore the image", and worth knowing before
+relying on one.
+
 ### What identification cannot reach
 
 Six boards were identified down to flash vendor and partition layout. The
