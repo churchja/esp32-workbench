@@ -74,7 +74,7 @@ automatically when you work in this repo.
 | `templates/idf-usb-console/` | Sibling for **USB-OTG parts (S2)**, where a console needs TinyUSB |
 | `templates/pio-base/` | PlatformIO/Arduino sibling, for the Arduino display-library ecosystem |
 | `backups/` | Flash images (gitignored) + manifests (tracked) |
-| `docs/` | Design rationale and recommendations |
+| `docs/` | Design rationale, recommendations, and the build log |
 | `.claude/skills/esp32-workbench/` | The skill and its references |
 
 ### Which template
