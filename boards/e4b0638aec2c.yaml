@@ -1,0 +1,266 @@
+schema_version: 1
+profile_id: e4b0638aec2c
+identified_at: '2026-09-05T00:59:26.653091+00:00'
+port_seen_on: /dev/cu.usbmodem1101
+identity:
+  usb_vid:
+    value: '0x303a'
+    provenance: usb
+  usb_pid:
+    value: '0x1001'
+    provenance: usb
+  usb_serial_number:
+    value: E4:B0:63:8A:EC:2C
+    provenance: usb
+  usb_product:
+    value: USB JTAG/serial debug unit
+    provenance: usb
+    note: USB product string as announced in THIS mode. Board-level names appear in app mode; ROM download
+      mode usually reports just the chip.
+  usb_interface:
+    value: Espressif USB JTAG/serial debug unit
+    provenance: usb
+  usb_interface_kind:
+    value: native
+    provenance: usb
+    note: native = the SoC implements USB directly (supports USB-JTAG debug, USB CDC console, and can
+      re-enumerate after reset). bridge = a separate UART chip; the SoC has no USB peripheral.
+  usb_vendor:
+    value: Espressif
+    provenance: usb
+  chip:
+    value: ESP32-S3 (QFN56) (revision v0.2)
+    provenance: probed
+  chip_family:
+    value: ESP32-S3
+    provenance: probed
+  chip_revision:
+    value: '0.2'
+    provenance: probed
+  chip_features:
+    value:
+    - Wi-Fi
+    - BT 5 (LE)
+    - Dual Core + LP Core
+    - 240MHz
+    - Embedded PSRAM 8MB (AP_3v3)
+    provenance: probed
+    note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
+      of the vendor listing.
+  crystal:
+    value: 40MHz
+    provenance: probed
+  usb_mode:
+    value: USB-Serial/JTAG
+    provenance: probed
+    note: Reported by esptool 5.x from the chip itself; corroborates the USB VID/PID reading of native
+      vs bridge.
+  mac:
+    value: e4:b0:63:8a:ec:2c
+    provenance: probed
+    note: Base MAC from eFuse (read from the 'MAC' line) -- globally unique per board. Used as the profile
+      and backup key so two boards of the same model never collide.
+  flash_manufacturer_id:
+    value: '0xef'
+    provenance: probed
+  flash_device_id:
+    value: '0x4018'
+    provenance: probed
+  flash_size:
+    value: 16MB
+    provenance: probed
+    note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
+      wrong about this.
+  flash_mode:
+    value: quad (4 data lines)
+    provenance: probed
+    note: quad vs octal changes the flash driver and the build config (CONFIG_ESPTOOLPY_OCT_FLASH / flash_mode).
+      Getting it wrong produces a board that flashes but will not boot.
+  flash_voltage:
+    value: 3.3V
+    provenance: probed
+    note: Set by eFuse. A 1.8V part driven at 3.3V is a hardware fault, not a config choice -- never override
+      this from a guess.
+  partitions:
+    value:
+    - label: nvs
+      type: data
+      subtype: nvs
+      offset: '0x9000'
+      offset_int: 36864
+      size: '0x5000'
+      size_int: 20480
+      size_human: 20KB
+      encrypted: false
+    - label: otadata
+      type: data
+      subtype: ota
+      offset: '0xe000'
+      offset_int: 57344
+      size: '0x2000'
+      size_int: 8192
+      size_human: 8KB
+      encrypted: false
+    - label: app0
+      type: app
+      subtype: ota_0
+      offset: '0x10000'
+      offset_int: 65536
+      size: '0x640000'
+      size_int: 6553600
+      size_human: 6.25MB
+      encrypted: false
+    - label: app1
+      type: app
+      subtype: ota_1
+      offset: '0x650000'
+      offset_int: 6619136
+      size: '0x640000'
+      size_int: 6553600
+      size_human: 6.25MB
+      encrypted: false
+    - label: spiffs
+      type: data
+      subtype: spiffs
+      offset: '0xc90000'
+      offset_int: 13172736
+      size: '0x360000'
+      size_int: 3538944
+      size_human: 3.375MB
+      encrypted: false
+    - label: coredump
+      type: data
+      subtype: coredump
+      offset: '0xff0000'
+      offset_int: 16711680
+      size: '0x10000'
+      size_int: 65536
+      size_human: 64KB
+      encrypted: false
+    provenance: probed
+    note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
+      it over any assumed default.
+  partition_table_md5:
+    value: b32dcdb83b1674af27768c92b1f88a62
+    provenance: probed
+  applications:
+    value:
+    - secure_version: 0
+      app_version: 'esp-idf: v4.4.7 38eeba213a'
+      project_name: arduino-lib-builder
+      build_time: '12:12:53'
+      build_date: Mar  5 2024
+      idf_version: v4.4.7-dirty
+      app_elf_sha256: 61d714e48f71834d4acc4259d498ebd3e49b208a9aec2b7275ed0c59f9f23760
+      partition: app0
+    provenance: probed
+    note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
+      and which SDK built it.
+  idf_target:
+    value: esp32s3
+    provenance: inferred
+    note: 'Derived from probed chip_family exactly. Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
+      not exported). Use: idf.py set-target esp32s3'
+pinmap: {}
+peripherals: {}
+research_queue:
+- field: display
+  status: unknown
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Vendor schematic for the ESP32-S3 board carrying this display. Then check for an existing BSP component
+    -- search the ESP Component Registry (components.espressif.com) for the board name, and espressif/esp-bsp,
+    which already encodes panel type, offsets and pins for many vendor boards. Confirm the controller
+    part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+- field: pinmap
+  status: unknown
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+- field: power
+  status: unknown
+  why: Battery connector, charge IC, and ADC divider ratio are board-level.
+  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
+    corrupts every battery reading.
+_diagnostics:
+  esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
+  esptool_version: 5.2.0
+  esptool_dialect: hyphenated (5.x)
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788569963
+  flash_id_rc: 0
+  flash_id_output: 'esptool v5.2.0
+
+    Serial port /dev/cu.usbmodem1101:
+
+    Connecting...
+
+    Detecting chip type... ESP32-S3
+
+    Connected to ESP32-S3 on /dev/cu.usbmodem1101:
+
+    Chip type:          ESP32-S3 (QFN56) (revision v0.2)
+
+    Features:           Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz, Embedded PSRAM 8MB (AP_3v3)
+
+    Crystal frequency:  40MHz
+
+    USB mode:           USB-Serial/JTAG
+
+    MAC:                e4:b0:63:8a:ec:2c
+
+
+    Uploading stub flasher...
+
+    Running stub flasher...
+
+    Stub flasher running.
+
+
+    Flash Memory Information:
+
+    =========================
+
+    Manufacturer: ef
+
+    Device: 4018
+
+    Detected flash size: 16MB
+
+    Flash type set in eFuse: quad (4 data lines)
+
+    Flash voltage set by eFuse: 3.3V
+
+
+    Staying in bootloader.'
+  fixture_recorded: tests/fixtures/board7-lilygo-tdisplay-s3-amoled.txt
+  partition_rc: 0
+board:
+  read_baud_max:
+    value: 230400
+    provenance: verified
+    note: 'Physical test via the backup ladder: 460800 failed with serial corruption,
+      230400 read the full 16MB. Fourth independent USB-Serial/JTAG board and the
+      fourth to land on exactly this ceiling (e072a1fb9c5c, 3cdc75edd7b0,
+      aca704007f60), across four different vendors, MACs and memory configs --
+      the per-interface model now has four confirmations and no counterexample.
+      First 16MB read the ladder has attempted, so it also doubles the largest
+      image size the derived timeout has been exercised against: the derived
+      ceiling was 2244s (size/(baud/10)*3+60) against a 756.5s actual, ~3x margin
+      as designed.'
+    caveat: 'The recorded read_seconds (756.5) is the whole-ladder wall time -- it
+      includes the failed 460800 attempt, which is not separated out. The 230400
+      read alone is therefore somewhat under 756.5s. Against the 10-bits-per-byte
+      model (16777216*10/230400 = 728.1s predicted) the ladder-inclusive figure is
+      3.9% over, so the read alone is closer to the model than any prior
+      USB-Serial/JTAG measurement -- but this is a bound, not a measurement.'
+verification_log:
+- date: '2026-09-05'
+  tested: board.read_baud_max
+  method: Full 16MB esptool read-flash via the backup baud ladder.
+  result: verified
+  note: Seventh board, fourth USB-Serial/JTAG. Confirms 230400 for the interface
+    group a fourth time. Also the first 16MB read in the repo, so the size-derived
+    timeout was exercised at double the previous maximum without coming close to
+    the ceiling.

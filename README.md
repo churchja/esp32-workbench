@@ -67,7 +67,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 322 assertions across 8 files; no hardware needed |
+| `tools/test_*.py` | 327 assertions across 8 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
@@ -126,15 +126,16 @@ what the tools actually recorded.
 | ESP32-S3 devkit | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `e072a1fb9c5c` |
 | M5 Stamp S3 | `ESP32-S3` | `esp32s3` | 8MB | none | `USB-Serial/JTAG` | 6 | **230400** | `3cdc75edd7b0` |
 | Cardputer ADV (Stamp **S3A**) | `ESP32-S3` | `esp32s3` | 8MB | none | `USB-Serial/JTAG` | 4 | **230400** | `aca704007f60` |
+| LilyGo T-Display S3 AMOLED | `ESP32-S3` | `esp32s3` | **16MB** | 8MB (AP_3v3) | `USB-Serial/JTAG` | 6 | **230400** | `e4b0638aec2c` |
 | Adafruit QT Py ESP32-S2 **A** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d661364` |
 | Adafruit QT Py ESP32-S2 **B** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d66124a` |
 | CH340 board (ESP8266) | `ESP8266EX` | `**none**` | 4MB | none | `CH340 bridge` | 0 | **230400** | `bcddc2246e97` |
 
-Backup and hash-verify: **all six**. Restore: verified on the S3 devkit, both
-QT Pys, and the ESP8266; the M5 Stamp and the Cardputer ADV have not been
-written to. Console over USB:
-free on both S3s, needs `templates/idf-usb-console` on the S2s, and is UART by
-nature on the CH340 board.
+Backup and hash-verify: **all seven**. Restore: verified on the S3 devkit, both
+QT Pys, and the ESP8266; the M5 Stamp, the Cardputer ADV and the LilyGo have not
+been written to. Console over USB: free on every S3, needs
+`templates/idf-usb-console` on the S2s, and is UART by nature on the CH340
+board.
 
 **The two QT Py rows are identical in every column but the profile id.** Same
 product string, VID/PID, chip, partition layout, factory images and build dates.
@@ -144,14 +145,21 @@ every earlier board was a different model. They landed on separate profiles, so
 board A kept its backup manifest and verified read ceiling instead of being
 silently overwritten.
 
-**The three S3 rows carry two further lessons**, and they are different in kind.
+**The four S3 rows carry two further lessons**, and they are different in kind.
 
-*Silicon can differ under one `set-target`.* The devkit has 8MB PSRAM; neither
-Stamp has any. `set-target` is `esp32s3` for all three, so a build config valid
-on one can mismanage memory on another. `chip_features` is read from eFuse
-rather than inferred from a part number, which is what catches it. Even the
-flash vendor differs — GigaDevice on the Stamp S3, XMC on the Stamp S3A — both
-described as "8MB embedded".
+*Silicon can differ under one `set-target`.* The devkit and the LilyGo have 8MB
+PSRAM; neither Stamp has any. The LilyGo also carries **16MB** of flash, double
+every other board here. `set-target` is `esp32s3` for all four, so a build
+config valid on one can mismanage memory *or overrun flash* on another.
+`chip_features` and `flash_size` are read from the silicon rather than inferred
+from a part number, which is what catches it. Even the flash vendor differs —
+GigaDevice on the Stamp S3, XMC on the Stamp S3A — both described as "8MB
+embedded".
+
+The LilyGo is the clearest case of PSRAM being a *consequence* of the board's
+job rather than a spec-sheet upgrade: an AMOLED framebuffer does not fit in
+internal SRAM, so the panel forces the memory. Reading `chip_features` predicts
+what a board is built to do.
 
 *Partition layout is a **firmware** decision recorded in hardware.* The Stamp S3
 carries M5Stack's stock dual 3.19MB OTA slots plus 1.5MB SPIFFS. The Stamp S3A,
@@ -168,39 +176,46 @@ on exact normalized-serial equality — two boards differing in the last three
 octets are precisely what a looser rule would have collapsed; and `mac` upgraded
 `inferred` → `probed` in place on B's successful probe.
 
-Note the baud row. Across **four** boards the ceiling tracks the **USB
+Note the baud row. Across **seven** boards the ceiling tracks the **USB
 interface**, not the individual board:
 
 | Interface | Boards | Max read baud |
 |---|---|---|
 | USB-OTG | 2 × ESP32-S2 | **460800** |
-| USB-Serial/JTAG | **3** × ESP32-S3 | 230400 |
+| USB-Serial/JTAG | **4** × ESP32-S3 | 230400 |
 | CH340 UART bridge | ESP8266 | 230400 |
 
 Every board within an interface agrees exactly, with **zero disagreement inside
-any group**. USB-Serial/JTAG now has three boards from three vendors — an
-Espressif devkit, an M5 Stamp S3 and a Stamp S3A — different MACs, different
-flash vendors (GD vs XMC), different partition layouts, all capping at 230400
-and all failing reproducibly at 460800.
+any group**. USB-Serial/JTAG now has four boards from four vendors — an
+Espressif devkit, an M5 Stamp S3, a Stamp S3A and a LilyGo T-Display S3 AMOLED —
+different MACs, different flash vendors, different flash *sizes* (8MB vs 16MB),
+different partition layouts, all capping at 230400 and all failing reproducibly
+at 460800.
 
 An earlier version of this file claimed the ceiling was per-board, arguing that
 "the two native boards disagree with each other". That conflated USB-OTG with
 USB-Serial/JTAG — different peripherals — and was written from three data
-points. The fourth broke it; split by interface, all agreed. The **fifth** board
-was the first to test the corrected claim rather than produce it, and it held.
+points. The fourth broke it; split by interface, all agreed. Boards **five,
+six and seven** each tested the corrected claim rather than producing it, and it
+held every time.
 
 The ladder is still the right design, but for the plainer reason: **no constant
 works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes both S2s four
 times slower than necessary. `esp32flash.py` negotiates rather than assumes.
 
-`n` is still small — six boards, three interfaces, one of which (the bridge)
-has a single example. Treat the table as a measured pattern, not a law. Note
-that boards five and six both *tested* the per-interface claim rather than
-producing it, and it held each time.
+`n` is still small — seven boards, three interfaces, one of which (the bridge)
+still has a single example. Treat the table as a measured pattern, not a law.
+The pattern's strength is that boards five through seven *tested* it rather than
+producing it; its weakness is that the four agreeing USB-Serial/JTAG boards
+share one SoC family, so the claim is really "the S3's USB-Serial/JTAG
+peripheral caps at 230400". A C3/C6/C5 would be the first real test.
 
 Timing corroborates the mechanism. Against the 10-bits-per-byte serial framing
 model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted and the ESP8266
-(real UART bridge) 202s vs 182 — both close. Only the S2's **USB-OTG** ran far
+(real UART bridge) 202s vs 182 — both close. The LilyGo's 16MB read held the
+same ratio at double the size (756.5s vs 728 predicted, and that figure still
+includes the discarded 460800 attempt), so the model does not drift with image
+size. Only the S2's **USB-OTG** ran far
 faster than predicted (33s vs 91), because OTG CDC does not throttle to the
 nominal baud. The model stays a safe *upper* bound, which is all the derived
 timeout needs.
