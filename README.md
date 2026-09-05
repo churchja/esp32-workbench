@@ -816,8 +816,43 @@ GPIO21/GPIO4 carry different functions here. And the earlier claim that this
 driver suits the Plus because it is "3-wire SPI" was **wrong**: three-wire means
 *no DC pin*, a protocol choice, not a single data lane. The example's bus width
 is a separate Kconfig option that defaults to QSPI. It does offer "Regular SPI",
-which `projects/lilygo-amoled-demo` selects along with the Plus's 40MHz rate —
-built clean, config verified in the generated `sdkconfig`, not yet flashed.
+which `projects/lilygo-amoled-demo` selects along with the Plus's 40MHz rate.
+
+**It was flashed, and the panel stayed black.** The reason is worth recording,
+because the driver is not misconfigured — it is the wrong tool, and no setting
+fixes it. `LilyGo_AMOLED.h` carries **two init command arrays for the same
+controller**:
+
+| config | init sequence | board |
+|---|---|---|
+| `RM67162_AMOLED` | `rm67162_cmd` | QSPI siblings |
+| `RM67162_AMOLED_SPI` | **`rm67162_spi_cmd`** | this Plus |
+
+**Bus width and init sequence are independent.** Selecting "Regular SPI" changes
+how bytes are clocked out, not which commands are sent — so the panel receives
+an init sequence its wiring does not accept, every ESP32-side call returns
+success, and the screen stays dark. The driver would need `rm67162_spi_cmd`
+added; that is a bounded piece of work, not a config change.
+
+Two things the attempt produced anyway. The vendor block gave a pin no other
+source had — **TE on GPIO9** — and settled that there is **no DC pin**
+(`BOARD_NONE_PIN`), correcting a reading in this repo that GPIO7 "becomes DC".
+
+And a real defect in the example, fixed in `projects/lilygo-amoled-demo`: its
+`spi_bus_config_t` compound literal leaves `data4`–`data7_io_num`
+zero-initialised, and **0 is a valid GPIO**, so the SPI driver claimed GPIO0 —
+the S3's BOOT strapping pin. The app drove it low and the board came up in
+`boot:0x21 (DOWNLOAD)` on every subsequent reset. The
+`spi_common: GPIO 0 is conflict` warning at init says exactly this; it was
+dismissed here as benign once, which it is not. Pinning the unused lines to `-1`
+fixed it, confirmed by the warning disappearing from a power-on boot log.
+
+**A note on debugging a self-emissive panel.** An AMOLED has no backlight, so
+*unpowered* and *powered, initialised, drawing all-zero pixels* are the same
+observation. "Black" therefore narrows nothing — the discriminating test is a
+**solid bright fill**, which takes the graphics stack out of the question. That
+test was never run here, so it also remains unexcluded that the panel is simply
+dead. The profile records this as `inferred`, not `verified`, for that reason.
 
 Two LilyGO-owned sources assign
 different *functions* to the same GPIOs on boards both label 1.91":

@@ -198,6 +198,15 @@ pinmap:
     value: 17
     provenance: unverified
     note: Active HIGH per the driver example's RST_ACTIVE_LEVEL default.
+  lcd_dc:
+    value: null
+    provenance: community
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
+    note: 'THERE IS NO DC PIN. RM67162_AMOLED_SPI sets the DC field to
+      BOARD_NONE_PIN; the //DC comment beside GPIO7 describes what that pin is
+      on a different wiring, not this one. Recorded because an earlier reading
+      of this repo concluded GPIO7 "becomes DC" on the Plus, which was wrong --
+      the no-DC protocol is correct here and the init sequence is what differs.'
   lcd_pwr:
     value: 38
     provenance: unverified
@@ -207,6 +216,13 @@ pinmap:
       with HWE_DISPLAY_PWR_ON_LEVEL 1, its readme noting the Waveshare board it
       also supports has no such pin. DANGER: the older non-touch repo calls this
       pin PIN_LED. Driving it as an indicator gates the display rail.'
+  lcd_te:
+    value: 9
+    provenance: unverified
+    note: 'Tearing-effect line. Present ONLY in LilyGo_AMOLED.h''s
+      RM67162_AMOLED_SPI block -- absent from the older factory example and from
+      the crosser driver example, so this pin was invisible until the Plus''s own
+      config was read.'
   button_1:
     value: 0
     provenance: unverified
@@ -220,6 +236,38 @@ display:
   height:
     value: 536
     provenance: unverified
+  init_sequence_is_variant_specific:
+    value: the Plus needs rm67162_spi_cmd, not rm67162_cmd
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
+    note: 'THE REASON A WORKING ESP-IDF DRIVER STILL LEAVES THIS PANEL BLACK.
+      LilyGo_AMOLED.h carries TWO init command arrays for the same controller:
+      RM67162_AMOLED (QSPI) uses rm67162_cmd / RM67162_INIT_SEQUENCE_LENGTH at
+      line 170, and RM67162_AMOLED_SPI (this board) uses rm67162_spi_cmd /
+      RM67162_INIT_SPI_SEQUENCE_LENGTH at line 193. Bus width and init sequence
+      are INDEPENDENT. Selecting "Regular SPI" in a driver that ships only the
+      QSPI sequence changes how bytes are clocked out and not which commands are
+      sent, so the panel is initialised with commands its wiring does not accept
+      and stays dark while every ESP32-side call returns success.
+      Tested on hardware 2026-09-05: crosser/esp-lcd-panel-rm67162 v0.3.0 ran
+      cleanly to "Turn on the screen" with no error, three times, and the panel
+      never lit. No Kconfig setting fixes this -- the driver would need
+      rm67162_spi_cmd added.'
+  amoled_black_is_ambiguous:
+    value: an unlit AMOLED and one drawing black are indistinguishable
+    provenance: inferred
+    note: 'Worth stating because it shaped the whole debug. There is no
+      backlight, so "panel unpowered" and "panel powered, initialised, receiving
+      all-zero pixels" produce the same observation. A blank screen therefore
+      does not narrow the fault the way it would on an LCD. The discriminating
+      test is a SOLID BRIGHT FILL, which removes the graphics stack from the
+      question entirely -- not an LVGL demo.
+      INFERRED, not verified: this is reasoned from the display technology and
+      is consistent with three observations of a black panel, but no test ever
+      demonstrated this panel CAN light. Until a solid fill does that, "black"
+      remains uninformative and the possibility that the panel is simply dead
+      has not been excluded. The validator rejected a "verified" claim here,
+      correctly.'
   controller:
     value: RM67162
     provenance: community
@@ -234,7 +282,7 @@ research_queue:
     scan.'
   how: python3 tools/esp32flash.py backup && flash projects/i2c-variant-scan && restore.
 - field: display
-  status: unknown
+  status: blocked
   why: The variant is known now, so the candidate set collapses to one row -- but the controller and
     bus below come from vendor files, not from this board.
   how: 'For the Plus: RM67162 over SINGLE SPI at 40MHz -- NOT the 75MHz QSPI wiring. LilyGo_AMOLED.h

@@ -112,6 +112,18 @@ void app_main(void)
 			.sclk_io_num = CONFIG_HWE_DISPLAY_SPI_SCK,
 			.data2_io_num = CONFIG_HWE_DISPLAY_SPI_D2,
 			.data3_io_num = CONFIG_HWE_DISPLAY_SPI_D3,
+			// data4..data7 MUST be -1 when unused. The compound literal
+			// zero-initialises them, and 0 is a VALID GPIO -- so the SPI
+			// driver claims GPIO0, which is the ESP32-S3 BOOT strapping
+			// pin. The app then drives it low and the next reset reads it
+			// low, so the board comes up in DOWNLOAD mode instead of
+			// running. Symptom: "spi_common: GPIO 0 is conflict with
+			// others and be overwritten" at init, then boot:0x21
+			// (DOWNLOAD(USB/UART0)) on every subsequent reset.
+			.data4_io_num = -1,
+			.data5_io_num = -1,
+			.data6_io_num = -1,
+			.data7_io_num = -1,
 			.max_transfer_sz = SEND_BUF_SIZE + 8,
 			.flags = SPICOMMON_BUSFLAG_MASTER
 				| SPICOMMON_BUSFLAG_GPIO_PINS
