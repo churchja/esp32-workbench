@@ -17,6 +17,7 @@ import io
 import json
 import os
 import shutil
+import struct
 import sys
 import tempfile
 import time
@@ -242,6 +243,114 @@ check("and still carries an attempts list",
 check("no entry is written without the marker key",
       all(k in entry for k in ("read_seconds", "ladder_seconds", "attempts")),
       True)
+
+
+print("\nthe manifest says WHICH firmware the image holds, not just that it is intact")
+
+# sha256 proves the bytes did not rot. It cannot say the bytes are the RIGHT
+# firmware. That distinction is not academic: reflashing a XIAO ESP32-S3 on
+# 2026-09-05 left project_name, app_version, idf_version, build_date and
+# build_time byte-for-byte identical, because those describe the precompiled
+# arduino-esp32 framework rather than the application. Judged on any field but
+# the ELF hash, the flash had done nothing.
+
+def image_with_apps(offsets, size=0x300000, sha_byte=0xAB, misaligned=()):
+    """Build a fake flash image carrying an esp_app_desc_t at each offset."""
+    buf = bytearray(size)
+    for i, off in enumerate(list(offsets) + list(misaligned)):
+        d = bytearray(256)
+        d[0:4] = struct.pack("<I", 0xABCD5432)          #   0 magic
+        d[4:8] = struct.pack("<I", 0)                   #   4 secure_version
+        d[16:48] = b"1.0\0".ljust(32, b"\0")            #  16 version
+        d[48:80] = b"arduino-lib-builder\0".ljust(32, b"\0")
+        d[80:96] = b"12:12:53\0".ljust(16, b"\0")
+        d[96:112] = b"Mar  5 2024\0".ljust(16, b"\0")
+        d[112:144] = b"v4.4.7-dirty\0".ljust(32, b"\0")
+        d[144:176] = bytes([(sha_byte + i) & 0xFF]) * 32  # 144 app_elf_sha256
+        buf[off + esp32flash.APP_DESC_OFFSET:
+            off + esp32flash.APP_DESC_OFFSET + 256] = d
+    return bytes(buf)
+
+
+def sha_of(blob):
+    with tempfile.NamedTemporaryFile(delete=False) as fh:
+        fh.write(blob)
+        p = fh.name
+    try:
+        return esp32flash.app_sha_from_image(p)
+    finally:
+        os.unlink(p)
+
+
+check("finds the descriptor at the usual app0 offset",
+      sha_of(image_with_apps([0x10000])), "ab" * 32)
+
+# An OTA board carries two app images. The one that BOOTS is the lower offset,
+# so returning app1's hash would name firmware the board is not running.
+check("with two app partitions it reports the lower offset, not the last found",
+      sha_of(image_with_apps([0x10000, 0x210000])), "ab" * 32)
+
+# The scan is 64KB-aligned on purpose: app partitions must be. Without that,
+# any 4 bytes of compressed data that happen to equal the magic would be read
+# as a descriptor and produce a confident, wrong hash.
+check("a magic sequence at a non-aligned offset is not mistaken for a descriptor",
+      sha_of(image_with_apps([], misaligned=[0x18800])), None)
+
+check("a blank image yields None rather than a fabricated hash",
+      sha_of(bytes(0x40000)), None)
+check("an image shorter than one descriptor does not raise",
+      sha_of(b"\x00" * 16), None)
+check("a missing file yields None rather than an exception",
+      esp32flash.app_sha_from_image("/nonexistent/never/created.bin"), None)
+
+
+class AppEsp(WritingEsp):
+    """WritingEsp whose image actually contains an app descriptor."""
+
+    def run(self, port, subcmd, *args, **kw):
+        rc, so, se = FakeEsp.run(self, port, subcmd, *args, **kw)
+        if rc == 0 and subcmd == "read-flash":
+            # SILICON reports a 1KB flash, so 0x10000 is past the end -- and
+            # bytearray slice assignment EXTENDS rather than raising, so a
+            # descriptor written there produces a malformed fixture silently.
+            # 0 is 64KB-aligned and fits, which is all this test needs.
+            n = int(args[1])
+            with open(args[2], "wb") as fh:
+                fh.write(image_with_apps([0], size=n))
+        return rc, so, se
+
+
+def run_backup_with(esp_cls, outcomes, ticks):
+    tmp = tempfile.mkdtemp()
+    real_backups, real_probe = esp32flash.BACKUPS, esp32flash.probe_silicon
+    esp32flash.BACKUPS = tmp
+    esp32flash.probe_silicon = lambda esp, port: SILICON
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            esp32flash.cmd_backup(esp_cls(outcomes), Args(), clock=FakeClock(ticks))
+        with open(os.path.join(tmp, "aabbccddeeff", "manifest.json")) as fh:
+            return json.load(fh)["backups"][-1]
+    finally:
+        esp32flash.BACKUPS, esp32flash.probe_silicon = real_backups, real_probe
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# The extractor being right is worth nothing if cmd_backup never calls it --
+# the exact shape of the original read_seconds bug.
+entry = run_backup_with(AppEsp, [(0, "")], [0.0, 12.0])
+check("cmd_backup writes the app hash into the manifest",
+      entry.get("app_elf_sha256"), "ab" * 32)
+# `x != sha256` alone passes when x is None -- it did, while the assertion
+# above was failing. Assert the SHAPE too, or the check is decorative.
+check("and it is a 64-char hex digest distinct from the image sha256",
+      (len(entry["app_elf_sha256"] or ""), entry["app_elf_sha256"] != entry["sha256"]),
+      (64, True))
+
+# A bootloader-only or erased chip has no descriptor. Recording None is the
+# honest answer; omitting the key would read as 'not yet supported'.
+entry = run_backup_with(WritingEsp, [(0, "")], [0.0, 12.0])
+check("an image with no app records the key as None, not absent",
+      ("app_elf_sha256" in entry, entry["app_elf_sha256"]), (True, None))
 
 
 print("\nevery write path forwards --after and --baud to esptool")

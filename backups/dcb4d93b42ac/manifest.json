@@ -1,0 +1,29 @@
+{
+  "mac": "dc:b4:d9:3b:42:ac",
+  "backups": [
+    {
+      "file": "full-20260905T142733Z-8388608.bin",
+      "sha256": "325b0eb7c535b9a2a7fe7e8509746e2a9abf8181a8b3cd2de752ef11c04eef2c",
+      "bytes": 8388608,
+      "created": "2026-09-05T14:34:23.638029+00:00",
+      "chip": "ESP32-S3 (QFN56) (revision v0.2)",
+      "read_seconds": 375.1,
+      "ladder_seconds": 409.8,
+      "attempts": [
+        {
+          "baud": 460800,
+          "seconds": 34.7,
+          "ok": false
+        },
+        {
+          "baud": 230400,
+          "seconds": 375.1,
+          "ok": true
+        }
+      ],
+      "baud": 230400,
+      "esptool_version": "5.2.0"
+    }
+  ],
+  "chip": "ESP32-S3 (QFN56) (revision v0.2)"
+}

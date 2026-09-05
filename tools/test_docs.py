@@ -193,37 +193,51 @@ NUMBER = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
 word = NUMBER.get(n_boards)
 check("the board count has a word for it", bool(word), True)
 
+# The LIVE inventory lives in README, not in the dated build log.
+#
+# It used to be checked against docs/session-2026-09-04.md, and the 11th board
+# broke that on 2026-09-05. The log opens: "The session that created this repo,
+# from `109e40a` (14:35). Ten boards. Test suite went from 73 assertions across
+# 5 files to **441 across 9**." Those are historical claims about ONE session.
+# Making them "current" would mean recording that the 2026-09-04 session
+# identified a board first seen on the 5th -- a passing test bought by
+# falsifying the record.
+#
+# So the log keeps its history and is no longer checked for currency; only its
+# origin commit, a fixed fact, still is. README carries the living inventory and
+# is checked against boards/*.yaml, which cannot drift because it IS the source.
 if word:
-    check("the board-count heading is current",
-          bool(re.search(rf"^## {word.capitalize()} boards\s*$", LOG_TEXT, re.M | re.I)),
-          True)
-    check("the 'all N identified' line is current",
-          bool(re.search(rf"All {word} identified", LOG_TEXT, re.I)), True)
-    # The opening paragraph states the count too, and drifted to "Nine boards"
-    # under a "## Ten boards" heading because only the heading was checked.
-    # Every place the number appears in prose needs to be one of these.
-    check("the header's board count is current",
-          bool(re.search(rf"\b{word} boards\b", LOG_TEXT.split("## ")[0], re.I)),
-          True)
+    check("README states the current board count",
+          bool(re.search(rf"\ball {word}\b", README_TEXT, re.I)), True)
 
-# The table under that heading must have one row per profile. Scoped to the
-# section so the failure-taxonomy tables further down cannot satisfy it.
-m_sec = re.search(r"^## \w+ boards\s*$(.*?)^## ", LOG_TEXT, re.M | re.S)
-check("the board section is delimited", bool(m_sec), True)
-if m_sec:
-    rows = [l for l in m_sec.group(1).splitlines()
-            if l.startswith("| ") and not l.startswith("|---")
-            and not l.startswith("| Board ")]
-    check("the board table has one row per profile", len(rows), n_boards)
+# Scoped to the CONTIGUOUS table under its header row, not to the whole "##
+# Validated hardware" section: that section runs for ~580 lines and contains a
+# dozen later tables, so a section-wide scan counted 59 rows against 11
+# profiles. Walk from the header row until the first non-table line.
+hw_rows = []
+lines = README_TEXT.splitlines()
+for i, l in enumerate(lines):
+    if l.startswith("| Board | Chip |"):
+        for m in lines[i + 1:]:
+            if not m.startswith("|"):
+                break
+            if not m.startswith("|---"):
+                hw_rows.append(m)
+        break
+check("the validated-hardware table is found", bool(hw_rows), True)
+if hw_rows:
+    rows = hw_rows
+    check("the hardware table has one row per profile", len(rows), n_boards)
+    # Every profile must appear by id, so a replaced or renamed board cannot be
+    # masked by the row count alone staying right.
+    joined = "\n".join(hw_rows)
+    missing = [os.path.basename(f)[:-5] for f in profiles
+               if os.path.basename(f)[:-5] not in joined]
+    check("every profile id appears in the table", missing, [])
 
-m_log_a = re.search(r"to \*\*(\d+) across (\d+)\*\*", LOG_TEXT)
-check("the build log states an assertion count", bool(m_log_a), True)
-if m_log_a and "claimed" in DEFERRED:
-    check("the build log's assertion count matches README's",
-          int(m_log_a.group(1)), DEFERRED["claimed"])
-    check("the build log's file count matches the repo",
-          int(m_log_a.group(2)),
-          len(glob.glob(os.path.join(REPO, "tools", "test_*.py"))))
+# NOT checked: the log's "441 across 9". That sentence records what the
+# 2026-09-04 session did; a later session adding tests does not make it wrong.
+# README's count is the one that must track the suite.
 
 # The origin commit is a fixed historical fact, so it IS checkable and stays.
 origin = re.search(r"from `([0-9a-f]{7,40})`", LOG_TEXT)

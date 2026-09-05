@@ -34,7 +34,8 @@ REPO = os.path.dirname(HERE)
 BACKUPS = os.path.join(REPO, "backups")
 sys.path.insert(0, HERE)
 
-from esp32ident import Esptool, enumerate_ports, probe_silicon  # noqa: E402
+from esp32ident import (Esptool, enumerate_ports, probe_silicon,  # noqa: E402
+                        parse_app_desc, APP_DESC_OFFSET)
 
 SIZE_RE = re.compile(r"^(\d+)\s*(B|KB|MB|GB)?$", re.I)
 UNITS = {"B": 1, "KB": 1024, "MB": 1024 ** 2, "GB": 1024 ** 3}
@@ -184,6 +185,42 @@ def board_identity(esp, port):
     size = parse_size(sil.get("flash_size", {}).get("value", ""))
     chip = sil.get("chip", {}).get("value", "unknown")
     return mac, size, chip
+
+
+APP_PART_ALIGN = 0x10000   # ESP-IDF requires app partitions on 64KB boundaries
+
+
+def app_sha_from_image(path):
+    """Return the primary app's app_elf_sha256 from a full-flash image, or None.
+
+    Read from the IMAGE, never the chip. The manifest describes an image, the
+    descriptor is already inside it, and doing it offline means this also works
+    on a backup taken years ago with the board long gone.
+
+    Why it is worth recording at all: every OTHER field in esp_app_desc_t can be
+    identical across completely different firmware. Reflashing a XIAO ESP32-S3
+    on 2026-09-05 changed the app entirely while project_name, app_version,
+    idf_version, build_date and build_time all stayed byte-for-byte the same --
+    they describe the precompiled arduino-esp32 framework, not the application.
+    The ELF hash was the only field that moved. A backup that cannot say which
+    firmware it holds can only be verified as intact, not as correct.
+
+    esp_app_desc_t sits APP_DESC_OFFSET into an app partition, and app
+    partitions are 64KB-aligned, so scan those boundaries. Lowest offset wins:
+    that is app0/ota_0, the partition that boots.
+    """
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return None
+    want = APP_DESC_OFFSET + 256
+    with open(path, "rb") as fh:
+        for off in range(0, max(0, size - want) + 1, APP_PART_ALIGN):
+            fh.seek(off)
+            desc = parse_app_desc(fh.read(want))
+            if desc:
+                return desc["app_elf_sha256"]
+    return None
 
 
 def board_dir(mac):
@@ -368,6 +405,10 @@ def cmd_backup(esp, args, clock=time.monotonic):
     man["chip"] = chip
     man.setdefault("backups", []).append({
         "file": name, "sha256": digest, "bytes": actual,
+        # sha256 proves the image is INTACT; app_elf_sha256 says WHICH firmware
+        # it holds. None when the image carries no app descriptor (a blank or
+        # bootloader-only chip), which is itself worth recording.
+        "app_elf_sha256": app_sha_from_image(dest),
         "created": datetime.now(timezone.utc).isoformat(),
         "chip": chip, "read_seconds": transfer,
         "ladder_seconds": ladder_seconds,
