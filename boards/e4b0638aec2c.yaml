@@ -164,26 +164,60 @@ identity:
 pinmap: {}
 peripherals: {}
 research_queue:
+- field: model_variant
+  status: blocked
+  why: Six sibling boards share ESP32-S3R8 + 16MB flash + 8MB OPI PSRAM, and the partition
+    table, USB ID and app description are all stock arduino-esp32 values. Nothing readable
+    over USB separates them. Searched 2026-09-04; see board.probe_discriminates_variant.
+  how: 'PHYSICAL OBSERVATION, not more reading. Look at the panel: 1.47in (194x368,
+    small rectangle), 1.91in (240x536, tall rectangle), 2.41in (450x600), 1.64in (280x456),
+    or 1.43/1.75in (466x466, ROUND). Shape alone splits the family. Then check for a
+    touch layer, which separates the 1.91in non-touch from Touch/Plus -- and that split
+    is what makes GPIO38 and GPIO21 hazardous. Everything below stays blocked until this
+    is answered.'
 - field: display
-  status: unknown
-  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
-    records them.
-  how: Vendor schematic for the ESP32-S3 board carrying this display. Then check for an existing BSP component
-    -- search the ESP Component Registry (components.espressif.com) for the board name, and espressif/esp-bsp,
-    which already encodes panel type, offsets and pins for many vendor boards. Confirm the controller
-    part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+  status: blocked
+  why: Controller, resolution and bus are all variant-dependent, and the variant is unknown.
+    Candidates by variant are recorded in board.variant_candidates.
+  how: 'Once the variant is known: SH8501 (1.47in), RM67162 (1.91in, QSPI 75MHz or single
+    SPI 40MHz over the SAME pins depending on build), RM690B0 (2.41in), CO5300 or SH8601
+    (1.43/1.75in round). No BSP exists for any of them -- see board.bsp_component -- so a
+    panel driver must be written or a third-party one adopted. Sources fetched 2026-09-04:
+    LilyGo-AMOLED-Series src/LilyGo_AMOLED.h and initSequence.h.'
+  note: Vendor sources state the RM67162 as 240x536 (portrait) in one file and 536x240
+    (landscape) in another. Not a contradiction -- native portrait, used landscape -- but
+    do not copy a WIDTH/HEIGHT pair without checking which convention the file uses.
 - field: pinmap
-  status: unknown
-  why: GPIO assignment is a PCB routing decision, invisible to probing.
-  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
-    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
-    the vendor. Mark every pin 'unverified' until a physical test confirms it.
-  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+  status: blocked
+  why: 'Two LilyGO-owned sources assign DIFFERENT FUNCTIONS to the same GPIOs on boards
+    they both label 1.91in, because they describe the non-touch and Touch/Plus builds.
+    Recording either set would be a coin flip on a live rail.'
+  how: Resolve the variant physically first. Then take pins from the source matching THAT
+    build, and mark every pin 'unverified' until a physical test confirms it.
+  danger: 'GPIO38 -- PIN_LED (green LED; non-touch schematic netlist U2 pin 43 -> R10 2K
+    -> D1 LED_GREEN -> GND) versus OL_EN, the AMOLED panel POWER ENABLE, on the Touch and
+    Plus schematics. Same pin, one drives an indicator and the other gates the display
+    rail. GPIO21 -- button with a 10K pull-up (non-touch net USET_KEY/KEY3) versus touch
+    controller INT (Touch/Plus). Driving an input-with-interrupt as an output, or gating
+    a display rail while expecting an LED, are both real-hardware faults.'
+  note: 'The 1.91in QSPI set that two vendor repos DO agree on is CS 6, SCK 47, D0 18, D1
+    7, D2 48, D3 5, RST 17 -- recorded here as a lead, deliberately NOT written into a
+    pinmap section, because it is unconfirmed for this unit and a third vendor file
+    (the LovyanGFX wrapper) disagrees.'
 - field: power
   status: unknown
-  why: Battery connector, charge IC, and ADC divider ratio are board-level.
-  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
-    corrupts every battery reading.
+  why: Battery connector, charge IC and the ADC divider ratio are board-level, and the
+    divider in particular silently corrupts every reading if guessed.
+  how: Vendor schematic for the CONFIRMED variant. The divider ratio was not established
+    by the 2026-09-04 search and must not be inferred.
+- field: schematic_trust
+  status: caution
+  why: 'The non-touch T-DISPLAY-S3-AMOLED schematic shows U3 = W25Q32 (4MB). This unit
+    probed 0xef/0x4018 = W25Q128 = 16MB, and the Touch and Plus schematics show W25Q128.
+    So at least one published LilyGO schematic disagrees with shipped hardware.'
+  how: Treat any single schematic as one source, not as ground truth. Cross-check against
+    the board JSON, the library headers and -- where the chip can answer, as it did for
+    flash -- against the silicon itself.
 _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0
@@ -260,6 +294,60 @@ board:
       read_seconds (successful rung), ladder_seconds (wall total) and a per-rung
       attempts list. This entry predates that and was deliberately not
       retro-fitted -- the split cannot be recovered after the fact.'
+  vendor:
+    value: LilyGO
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/README.MD
+  model_variant:
+    value: null
+    provenance: unverified
+    note: 'NOT DETERMINED -- and not determinable by probing. Recorded as an
+      explicit negative so the next session does not re-run the search. "LilyGO
+      T-Display S3 AMOLED" names a FAMILY of at least six boards that differ in
+      panel controller, resolution, bus and pin assignment. Every one of them is
+      ESP32-S3R8 with 16MB flash and 8MB OPI PSRAM, so the eFuse reading that
+      separated the other six boards in this repo separates nothing here.'
+  variant_candidates:
+    value:
+    - T-Display-AMOLED-Lite 1.47in 194x368 SH8501
+    - T-Display-S3 AMOLED 1.91in 240x536 RM67162 (QSPI)
+    - T-Display-S3 AMOLED Plus 1.91in 240x536 RM67162 (single SPI)
+    - T4-S3 2.41in 450x600 RM690B0
+    - T-Display-S3-AMOLED-1.64 280x456
+    - T-Display-S3-AMOLED-1.43/1.75 466x466 round, CO5300 or SH8601
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/README.MD
+    note: 'The first four come from the vendor support table, which lists all
+      four as ESP32-S3R8/16MB/8MB(OPI). The last two live in separate repos;
+      the 1.43/1.75 ships board files for 4MB, 8MB and 16MB flash, so flash size
+      does not exclude it either.'
+  probe_discriminates_variant:
+    value: false
+    provenance: probed
+    note: 'Every identifying field this repo collects turned out to be generic.
+      partition_table_md5 b32dcdb83b1674af27768c92b1f88a62 is byte-for-byte
+      espressif/arduino-esp32 tools/partitions/default_16MB.csv -- a stock
+      Arduino layout, not a LilyGO board file. USB 303a:1001 is the generic
+      Espressif native USB-Serial/JTAG ID. The "arduino-lib-builder / v4.4.7"
+      app description is the standard arduino-esp32 core build stamp. Useful to
+      know: these three fields identify a BUILD, never a board.'
+  variant_evidence_weak:
+    value: consistent with the 1.91in non-touch board, not proof
+    provenance: community
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/T-Display-S3-AMOLED/main/boards/lilygo-t-amoled.json
+    note: 'That board file declares flash_size 16MB, flash_mode qio, memory_type
+      qio_opi, hwids [0x303A,0x1001] and partitions default_16MB.csv -- all four
+      match the probe. The factory app (ESP-IDF v4.4.7, Mar 5 2024) also falls in
+      the Arduino-core era that repo requires (2.0.5 <= version < 3.0.0).
+      CIRCUMSTANTIAL: the same board file would match several siblings.'
+  bsp_component:
+    value: none exists
+    provenance: vendor_doc
+    source: https://components.espressif.com/
+    note: 'Searched the ESP Component Registry and espressif/esp-bsp: no board
+      support package exists for ANY variant in this family. The "check for a
+      BSP first" shortcut that the research_queue recommends is closed for this
+      board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
 - date: '2026-09-05'
   tested: board.read_baud_max
