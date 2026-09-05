@@ -1,6 +1,6 @@
 schema_version: 1
 profile_id: d83bda407850
-identified_at: '2026-09-05T02:44:24.606934+00:00'
+identified_at: '2026-09-05T06:09:21.040224+00:00'
 port_seen_on: /dev/cu.usbmodem1101
 identity:
   usb_vid:
@@ -124,25 +124,25 @@ identity:
       subtype: nvs
       offset: '0xf90000'
       offset_int: 16318464
-      size: '0x6d000'
-      size_int: 446464
-      size_human: 436KB
+      size: '0x70000'
+      size_int: 458752
+      size_human: 448KB
       encrypted: false
     provenance: probed
     note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
       it over any assumed default.
   partition_table_md5:
-    value: 676548594bf6c3ad8a13ec77fc4ef196
+    value: e8e9f84277318a61c2cdfc8d2d0a6c6c
     provenance: probed
   applications:
     value:
     - secure_version: 0
-      app_version: 2024.11.2
+      app_version: 2026.4.5
       project_name: satellite1
-      build_time: '15:24:15'
-      build_date: Dec 19 2024
-      idf_version: 4.4.8
-      app_elf_sha256: 5424abe94cb4c30fd2e6659f729170857ed00392086726ee6cd061b99b0a8a35
+      build_time: '21:52:27'
+      build_date: May 28 2026
+      idf_version: 5.5.4
+      app_elf_sha256: 0a2be0332ee3523db7e6df8d1beb67919c453a1894f00f52a160f282408c3886
       partition: app0
     provenance: probed
     note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
@@ -179,7 +179,7 @@ _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0
   esptool_dialect: hyphenated (5.x)
-  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788576261
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788588557
   flash_id_rc: 0
   flash_id_output: 'esptool v5.2.0
 
@@ -232,113 +232,138 @@ board:
     provenance: vendor_doc
     source: https://docs.futureproofhomes.net/satellite1-introduction/
   model:
-    value: Satellite1 CORE rev4.1 (R2024.12.06), Public Batch #1
+    value: Satellite1 CORE rev4.1 (R2024.12.06), Public Batch
     provenance: vendor_doc
     source: https://github.com/FutureProofHomes/Satellite1-Hardware
-    note: 'R2024.12.06 is the vendor''s literal revision-date tag, not marketing.
-      The KiCad title block of core/rev4.1coreSCH.pdf reads Date 2024-12-06 /
-      Rev rev4.1. Predecessor rev4/R2024.11.07 and successor rev4.2/R2025.01.31
-      were prototypes; rev4.1 is the first public batch, shipped to customers by
-      2025-01-31. This is the ORIGINAL generation, not Satellite1.1 -- the
-      original has a built-in antenna, Sat1.1 requires an external IPEX one.'
+    note: R2024.12.06 is the vendor's literal revision-date tag, not marketing. The KiCad title block
+      of core/rev4.1coreSCH.pdf reads Date 2024-12-06 / Rev rev4.1. Predecessor rev4/R2024.11.07 and successor
+      rev4.2/R2025.01.31 were prototypes; rev4.1 is the first public batch, shipped to customers by 2025-01-31.
+      This is the ORIGINAL generation, not Satellite1.1 -- the original has a built-in antenna, Sat1.1
+      requires an external IPEX one.
   architecture:
     value: two-board stack -- CORE (compute) + HAT (audio/sensors)
     provenance: vendor_doc
     source: https://docs.futureproofhomes.net/satellite1-assembly/
-    note: 'The CORE is the rectangular compute board in a Raspberry Pi Zero
-      footprint: ESP32-S3-WROOM-1 N16R8, USB-C, boot/reset buttons, 40-pin
-      header. The HAT is the round audio board: XMOS XU316, 4 PDM mics, 24
-      WS2812 LEDs, TAS2780 25W amp, PCM5122, AHT20, LTR-303ALS, FUSB302 USB-PD,
-      4 buttons. They mate over the RPi 40-pin header. The probed silicon is the
-      CORE only -- every audio part above lives on the HAT.'
+    note: 'The CORE is the rectangular compute board in a Raspberry Pi Zero footprint: ESP32-S3-WROOM-1
+      N16R8, USB-C, boot/reset buttons, 40-pin header. The HAT is the round audio board: XMOS XU316, 4
+      PDM mics, 24 WS2812 LEDs, TAS2780 25W amp, PCM5122, AHT20, LTR-303ALS, FUSB302 USB-PD, 4 buttons.
+      They mate over the RPi 40-pin header. The probed silicon is the CORE only -- every audio part above
+      lives on the HAT.'
   wroom_module:
     value: ESP32-S3-WROOM-1 N16R8
     provenance: vendor_doc
     source: https://futureproofhomes.net/products/satellite1-core-board.json
-    note: 'N16R8 = 16MB flash + 8MB PSRAM. The eFuse readout matches exactly,
-      so vendor spec and silicon agree here -- unlike the LilyGo, where the
-      vendor listing could not narrow the board at all.'
+    note: N16R8 = 16MB flash + 8MB PSRAM. The eFuse readout matches exactly, so vendor spec and silicon
+      agree here -- unlike the LilyGo, where the vendor listing could not narrow the board at all.
   firmware_running:
+    value: Satellite1 v0.2.0 (ESPHome 2026.4.5, IDF 5.5.4, built 2026-05-28)
+    provenance: verified
+    note: 'Updated on hardware 2026-09-05 from v0.0.5-beta.1. Flashed
+      satellite1.factory.bin (3334320 bytes, sha256 c0334d8da189c4b0902f08ed5e
+      395780f6346e5f42c8266f217725b764173909) at 0x0 through the backup gate,
+      then re-probed: app0 now reads project satellite1, version 2026.4.5,
+      IDF 5.5.4, built May 28 2026 21:52:27. Base image chosen over the ld2410
+      and ld2450 variants because no mmWave module was confirmed fitted -- a
+      radar build without the hardware yields a sensor that never reports,
+      whereas a module added later can be handled by OTA.
+      Wi-Fi credentials and entity states survived: nvs sits at 0xf90000 and
+      the 3.3MB image writes only 0x0-0x32e0f0, so nvs was never touched. Its
+      size grew 0x6d000 -> 0x70000 (436KB -> 448KB) at the same start offset,
+      extending to fill the flash, which does not invalidate existing entries.
+      The flashed partition table matches the image exactly -- embedded IDF md5
+      e8e9f84277318a61c2cdfc8d2d0a6c6c on both sides.
+      NOT captured by the backup and NOT reverted by a restore: the XMOS is
+      reflashed on boot from the image embedded in whatever ESP32 build is
+      running, so it has moved to v0.2.0''s embedded XMOS version.'
+  firmware_previous:
     value: Satellite1 v0.0.5-beta.1 (released 2024-12-19)
     provenance: vendor_doc
     source: https://github.com/FutureProofHomes/Satellite1-ESPHome/releases
-    note: 'Identified by downloading the vendor''s archived factory image and
-      comparing: that image''s partition table hashes to exactly this board''s
-      partition_table_md5 (676548594bf6c3ad8a13ec77fc4ef196) and its app
-      descriptor matches byte-for-byte -- version 2024.11.2, project satellite1,
-      Dec 19 2024 15:24:15, IDF 4.4.8. About 13 releases behind v0.2.0.
-      CAREFUL: "2024.11.2" in the app descriptor is the ESPHOME version, not the
-      Satellite1 firmware version. Two numbering systems, easily conflated.'
+    note: 'Identified by downloading the vendor''s archived factory image and comparing: that image''s
+      partition table hashes to exactly this board''s partition_table_md5 (676548594bf6c3ad8a13ec77fc4ef196)
+      and its app descriptor matches byte-for-byte -- version 2024.11.2, project satellite1, Dec 19 2024
+      15:24:15, IDF 4.4.8. About 13 releases behind v0.2.0. CAREFUL: "2024.11.2" in the app descriptor
+      is the ESPHOME version, not the Satellite1 firmware version. Two numbering systems, easily conflated.'
   partition_table_origin:
     value: ESPHome stock auto-generated ESP-IDF layout for 16MB -- NOT custom
     provenance: vendor_doc
     source: https://github.com/FutureProofHomes/Satellite1-ESPHome/releases
-    note: 'Every element that looks bespoke falls out of ESPHome''s own
-      generator: app0/app1 at 7.75MB each because APP_PARTITION_SIZES["16MB"] =
-      0x7C0000 halves the leftover flash into two OTA slots; nvs at 436KB
-      (0x6D000) because that is ESPHome''s hardcoded IDF_NVS_SIZE at that
-      version; nvs at the end with otadata at 0x9000 because gen_esp32part.py
-      places partitions in listed order and otadata is listed first; and no
-      filesystem partition because ESPHome''s ESP-IDF layout never creates one.
-      RECORDED AS A CORRECTION: this table was first read as a vendor
-      fingerprint, on the reasoning that it differed from stock arduino-esp32.
-      It differs from THAT stock and matches a DIFFERENT one. "Not the stock
-      layout I know" is not the same as "custom".'
+    note: 'Every element that looks bespoke falls out of ESPHome''s own generator: app0/app1 at 7.75MB
+      each because APP_PARTITION_SIZES["16MB"] = 0x7C0000 halves the leftover flash into two OTA slots;
+      nvs at 436KB (0x6D000) because that is ESPHome''s hardcoded IDF_NVS_SIZE at that version; nvs at
+      the end with otadata at 0x9000 because gen_esp32part.py places partitions in listed order and otadata
+      is listed first; and no filesystem partition because ESPHome''s ESP-IDF layout never creates one.
+      RECORDED AS A CORRECTION: this table was first read as a vendor fingerprint, on the reasoning that
+      it differed from stock arduino-esp32. It differs from THAT stock and matches a DIFFERENT one. "Not
+      the stock layout I know" is not the same as "custom".'
   nvs_contents:
     value: ESPHome preferences, esp_wifi config, and a PHY RF calibration cache
     provenance: vendor_doc
     source: https://github.com/FutureProofHomes/Satellite1-ESPHome
-    note: 'Checked because a 436KB nvs raised the question of whether something
-      unrecoverable lives there. It does not. All four vendor C++ components
-      were grepped for nvs/preferences/efuse/serial with zero hits; nvs holds
-      only the "esphome" preferences namespace, esp_wifi''s own config, and a
-      MAC-keyed PHY calibration cache ESP-IDF regenerates on demand. Device
-      identity comes from the eFuse MAC (name_add_mac_suffix), not from flash.
-      There is no nvs_keys partition, so NVS is unencrypted and can be dumped
-      and restored with esptool. A full erase costs saved Wi-Fi credentials and
-      entity states, nothing more.'
+    note: Checked because a 436KB nvs raised the question of whether something unrecoverable lives there.
+      It does not. All four vendor C++ components were grepped for nvs/preferences/efuse/serial with zero
+      hits; nvs holds only the "esphome" preferences namespace, esp_wifi's own config, and a MAC-keyed
+      PHY calibration cache ESP-IDF regenerates on demand. Device identity comes from the eFuse MAC (name_add_mac_suffix),
+      not from flash. There is no nvs_keys partition, so NVS is unencrypted and can be dumped and restored
+      with esptool. A full erase costs saved Wi-Fi credentials and entity states, nothing more.
   xmos_coprocessor:
     value: XMOS XU316 with its OWN SPI flash, flashed by the ESP32
     provenance: vendor_doc
     source: https://github.com/FutureProofHomes/Satellite1-ESPHome/blob/main/esphome/components/satellite1/memory_flasher/xmos_flashing.cpp
-    note: 'XMOSFlasher reads a JEDEC ID and does chip_erase/erase_sector/
-      read_page/write_page over SPI (CS GPIO10, MODE3, 8MHz; reset GPIO4), so
-      the XMOS firmware is on a SEPARATE chip that esptool cannot see -- a full
-      esptool backup of this board does NOT contain it. Mitigated: the ESPHome
-      config embeds the XMOS image in the ESP32 binary at build time
-      (memory_flasher embed_flash_image), and it is auto-reflashed on boot. So
-      restoring the ESP32 image restores the ability to reflash the XMOS, and in
-      practice the XMOS follows. What is NOT captured is the XMOS chip''s
-      current contents -- recovery means reflashing the embedded version, not
-      restoring what was there.'
+    note: 'XMOSFlasher reads a JEDEC ID and does chip_erase/erase_sector/ read_page/write_page over SPI
+      (CS GPIO10, MODE3, 8MHz; reset GPIO4), so the XMOS firmware is on a SEPARATE chip that esptool cannot
+      see -- a full esptool backup of this board does NOT contain it. Mitigated: the ESPHome config embeds
+      the XMOS image in the ESP32 binary at build time (memory_flasher embed_flash_image), and it is auto-reflashed
+      on boot. So restoring the ESP32 image restores the ability to reflash the XMOS, and in practice
+      the XMOS follows. What is NOT captured is the XMOS chip''s current contents -- recovery means reflashing
+      the embedded version, not restoring what was there.'
   read_baud_max:
     value: 230400
     provenance: verified
-    note: 'Physical test via the backup ladder: 460800 failed with serial
-      corruption after 4.7s, 230400 read the full 16MB in 750.5s. Fifth
-      USB-Serial/JTAG board, fifth to land on this ceiling. Also the first CLEAN
-      16MB measurement in the repo -- 750.5s against 728.2s predicted by the
-      10-bits-per-byte model, 3.1% over. The LilyGo''s comparable figure was
-      756.5s but whole-ladder; subtracting a discard of similar size puts the
-      two boards within about a second of each other.'
+    note: 'Physical test via the backup ladder: 460800 failed with serial corruption after 4.7s, 230400
+      read the full 16MB in 750.5s. Fifth USB-Serial/JTAG board, fifth to land on this ceiling. Also the
+      first CLEAN 16MB measurement in the repo -- 750.5s against 728.2s predicted by the 10-bits-per-byte
+      model, 3.1% over. The LilyGo''s comparable figure was 756.5s but whole-ladder; subtracting a discard
+      of similar size puts the two boards within about a second of each other.'
   usb_pd_behaviour:
     value: amplifier mode depends on the negotiated USB-PD contract voltage
     provenance: vendor_doc
     source: https://github.com/FutureProofHomes/Satellite1-ESPHome/blob/main/config/satellite1.base.yaml
-    note: 'The config activates the TAS2780 in mode 2 only when
-      pd_fusb302b.contract_voltage >= 9, and a different mode otherwise. On a
-      plain 5V USB-A port the amplifier runs reduced. Operationally this is the
-      first thing to check if audio sounds underpowered -- it is a power
-      negotiation outcome, not a config error.'
+    note: The config activates the TAS2780 in mode 2 only when pd_fusb302b.contract_voltage >= 9, and
+      a different mode otherwise. On a plain 5V USB-A port the amplifier runs reduced. Operationally this
+      is the first thing to check if audio sounds underpowered -- it is a power negotiation outcome, not
+      a config error.
 verification_log:
+- date: '2026-09-05'
+  tested: board.firmware_running
+  method: 'Flashed satellite1.factory.bin from the v0.2.0 GitHub release at 0x0
+    via tools/esp32flash.py flash (backup gate satisfied by the 16MB image taken
+    minutes earlier), then re-probed with esp32ident and read the app descriptor
+    back out of app0.'
+  result: verified
+  note: 'Pre-flash checks that made this safe, in order: parsed the partition
+    table out of the downloaded image and compared it entry-by-entry against the
+    probed table -- identical offsets throughout, nvs differing only in size
+    (0x6d000 -> 0x70000) at the same 0xf90000 start; confirmed the 3.3MB image
+    spans only 0x0-0x32e0f0 so nvs is never written; and confirmed a verified
+    backup existed. After the flash the board reads app version 2026.4.5, IDF
+    5.5.4, built May 28 2026, and the partition table matches the image exactly
+    (embedded IDF md5 e8e9f84277318a61c2cdfc8d2d0a6c6c both sides).
+    METHOD ERROR WORTH RECORDING: the first comparison hashed the image''s table
+    with a hand-rolled md5 over the 0xff-stripped region and compared it to the
+    tool''s partition_table_md5. Those are different computations -- the tool
+    reports the md5 record ESP-IDF embeds in the table itself (magic EBEB,
+    covering only the 160 bytes of real entries). The two numbers were never
+    comparable and the "the layout changed" reading drawn from them was not
+    established by that test. The conclusion survived only because it was then
+    re-derived by parsing both tables, which was the sound check.'
 - date: '2026-09-05'
   tested: board.read_baud_max
   method: Full 16MB esptool read-flash via the backup baud ladder.
   result: verified
-  note: 'Ninth board, fifth USB-Serial/JTAG, and the FIRST backup since the
-    per-rung timer fix to actually fall back -- so it is the first manifest
-    where read_seconds and ladder_seconds diverge: 750.5 vs 755.2, differing by
-    exactly the 4.7s discarded 460800 attempt, with the rungs summing to the
-    ladder total. It also turns "the ladder fails fast" from a claim in the S3
-    devkit''s profile note ("reproducible in <6s") into a recorded measurement
-    that every future fallback will collect automatically.'
+  note: 'Ninth board, fifth USB-Serial/JTAG, and the FIRST backup since the per-rung timer fix to actually
+    fall back -- so it is the first manifest where read_seconds and ladder_seconds diverge: 750.5 vs 755.2,
+    differing by exactly the 4.7s discarded 460800 attempt, with the rungs summing to the ladder total.
+    It also turns "the ladder fails fast" from a claim in the S3 devkit''s profile note ("reproducible
+    in <6s") into a recorded measurement that every future fallback will collect automatically.'
+first_identified_at: '2026-09-05T02:44:24.606934+00:00'
