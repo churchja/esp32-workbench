@@ -1,6 +1,6 @@
 schema_version: 1
 profile_id: e4b0638aec2c
-identified_at: '2026-09-05T00:59:26.653091+00:00'
+identified_at: '2026-09-05T07:54:00.146499+00:00'
 port_seen_on: /dev/cu.usbmodem1101
 identity:
   usb_vid:
@@ -151,7 +151,7 @@ identity:
       build_time: '12:12:53'
       build_date: Mar  5 2024
       idf_version: v4.4.7-dirty
-      app_elf_sha256: 61d714e48f71834d4acc4259d498ebd3e49b208a9aec2b7275ed0c59f9f23760
+      app_elf_sha256: b697e0d2ce802e5245a9dd5d2bb3bd387d1a50389f5156a8befd37f23928ca5c
       partition: app0
     provenance: probed
     note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
@@ -164,64 +164,26 @@ identity:
 pinmap: {}
 peripherals: {}
 research_queue:
-- field: model_variant
-  status: resolved
-  why: 'Resolved on hardware 2026-09-04 by I2C scan -- T-Display-S3 AMOLED Plus 1.91in.
-    See board.model_variant and the verification_log entry. Kept rather than deleted
-    because the METHOD is the reusable part: no LilyGO AMOLED board can be told from
-    its siblings over USB, so any future one needs the same scan.'
-  how: python3 tools/esp32flash.py backup && flash projects/i2c-variant-scan && restore.
 - field: display
   status: unknown
-  why: The variant is known now, so the candidate set collapses to one row -- but the
-    controller and bus below come from vendor files, not from this board.
-  how: 'For the Plus: RM67162 over SINGLE SPI at 40MHz -- NOT the 75MHz QSPI wiring.
-    LilyGo_AMOLED.h RM67162_AMOLED_SPI sets d2 = d3 = -1, so the widely-quoted 4-data-line
-    pin set belongs to a different board. Geometry is 240x536 native portrait, used as
-    536x240 landscape. cmdBits 8 / addrBits 24 hold across the family; the clock does not.
-    No BSP exists (board.bsp_component), so a driver must be written or adopted.'
-  danger: 'The 536x240 figure is a board+panel property, not an RM67162 property -- the
-    Raydium datasheet does not list that geometry, so "has an RM67162" does not entail it.'
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Vendor schematic for the ESP32-S3 board carrying this display. Then check for an existing BSP component
+    -- search the ESP Component Registry (components.espressif.com) for the board name, and espressif/esp-bsp,
+    which already encodes panel type, offsets and pins for many vendor boards. Confirm the controller
+    part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
 - field: pinmap
   status: unknown
-  why: 'The variant is settled, so the three cross-variant conflicts are settled with it.
-    What remains is that no pin has been confirmed ON THIS BOARD -- vendor files are one
-    source and this unit already caught a vendor schematic being wrong about its own
-    flash part (see schematic_trust).'
-  how: Take the Plus rows from LilyGo_AMOLED.h and its schematic, and mark every pin
-    'unverified' until a physical test confirms it.
-  resolved_conflicts: 'All three now have an answer, and all three are the side the older
-    non-touch repo would have got WRONG. GPIO38 = OL_EN, the AMOLED panel POWER ENABLE --
-    not PIN_LED. GPIO21 = touch controller INT -- not a button. GPIO4 = nominally the
-    battery ADC but SHADOWED by the BQ25896 PMU, so the ADC path is dead code.'
-  danger: 'Driving GPIO38 as an indicator LED gates the display rail. Driving GPIO21 as
-    an output fights a touch controller interrupt line. Both were live risks while the
-    variant was unknown, which is why no pinmap was written; they are still live for
-    anyone copying the non-touch pin set onto this board.'
-- field: power
-  status: resolved
-  why: 'Settled by the variant. This board reads battery voltage over I2C from a BQ25896
-    PMU at 0x6b -- confirmed present by the scan -- NOT through a resistive divider.'
-  how: 'Use the PMU. LilyGo_AMOLED::getBattVoltage() returns BQ.getBattVoltage() on this
-    variant and never reaches the ADC branch.'
-  danger: 'The divider ratio 2.0 on GPIO4, established from the vendor schematic and the
-    driver source, belongs to the 1.91in QSPI board and NOT to this one. Applying
-    analogReadMilliVolts(4) * 2 here exercises dead code and returns a plausible-looking
-    wrong number rather than failing. This is the concrete case for why it was never
-    recorded as a value.'
-- field: schematic_trust
-  status: caution
-  why: 'The non-touch T-DISPLAY-S3-AMOLED schematic shows U3 = W25Q32 (4MB). This unit
-    probed 0xef/0x4018 = W25Q128 = 16MB, and the Touch and Plus schematics show W25Q128.
-    So at least one published LilyGO schematic disagrees with shipped hardware.'
-  how: Treat any single schematic as one source, not as ground truth. Cross-check against
-    the board JSON, the library headers and -- where the chip can answer, as it did for
-    flash and for the variant itself -- against the silicon.
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
 _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0
   esptool_dialect: hyphenated (5.x)
-  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788569963
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788594836
   flash_id_rc: 0
   flash_id_output: 'esptool v5.2.0
 
@@ -267,40 +229,32 @@ _diagnostics:
 
 
     Staying in bootloader.'
-  fixture_recorded: tests/fixtures/board7-lilygo-tdisplay-s3-amoled.txt
   partition_rc: 0
 board:
   read_baud_max:
     value: 230400
     provenance: verified
-    note: 'Physical test via the backup ladder: 460800 failed with serial corruption,
-      230400 read the full 16MB. Fourth independent USB-Serial/JTAG board and the
-      fourth to land on exactly this ceiling (e072a1fb9c5c, 3cdc75edd7b0,
-      aca704007f60), across four different vendors, MACs and memory configs --
-      the per-interface model now has four confirmations and no counterexample.
-      First 16MB read the ladder has attempted, so it also doubles the largest
-      image size the derived timeout has been exercised against: the derived
-      ceiling was 2244s (size/(baud/10)*3+60) against a 756.5s actual, ~3x margin
+    note: 'Physical test via the backup ladder: 460800 failed with serial corruption, 230400 read the
+      full 16MB. Fourth independent USB-Serial/JTAG board and the fourth to land on exactly this ceiling
+      (e072a1fb9c5c, 3cdc75edd7b0, aca704007f60), across four different vendors, MACs and memory configs
+      -- the per-interface model now has four confirmations and no counterexample. First 16MB read the
+      ladder has attempted, so it also doubles the largest image size the derived timeout has been exercised
+      against: the derived ceiling was 2244s (size/(baud/10)*3+60) against a 756.5s actual, ~3x margin
       as designed.'
-    confirmed_by_second_read: 'The board was read again after the timer fix and
-      the two runs settle this directly. Run 1 recorded read_seconds 756.5 with
-      no attempts list; run 2 recorded read_seconds 747.3 and ladder_seconds
-      756.8, with a 9.5s discarded 460800 attempt. The old field and the new
-      ladder_seconds agree within 0.3s on the same board doing the same
-      operation -- so the old read_seconds was indeed whole-ladder time, and the
-      estimate of "somewhat under 756.5s" below is now measured at 747.3s
-      (2.6% over the 728.1s model, not the 3.9% the inflated figure implied).'
-    caveat: 'The recorded read_seconds (756.5) is whole-ladder wall time -- it
-      includes the failed 460800 attempt, which this backup had no way to
-      separate out. The 230400 read alone is therefore somewhat under 756.5s.
-      Against the 10-bits-per-byte model (16777216*10/230400 = 728.1s predicted)
-      the ladder-inclusive figure is 3.9% over, so the read alone is closer to
-      the model than any prior USB-Serial/JTAG measurement -- but this is a
-      bound, not a measurement. This board was the last to be recorded that way:
-      read_with_fallback now times each rung separately and manifests carry
-      read_seconds (successful rung), ladder_seconds (wall total) and a per-rung
-      attempts list. This entry predates that and was deliberately not
-      retro-fitted -- the split cannot be recovered after the fact.'
+    confirmed_by_second_read: The board was read again after the timer fix and the two runs settle this
+      directly. Run 1 recorded read_seconds 756.5 with no attempts list; run 2 recorded read_seconds 747.3
+      and ladder_seconds 756.8, with a 9.5s discarded 460800 attempt. The old field and the new ladder_seconds
+      agree within 0.3s on the same board doing the same operation -- so the old read_seconds was indeed
+      whole-ladder time, and the estimate of "somewhat under 756.5s" below is now measured at 747.3s (2.6%
+      over the 728.1s model, not the 3.9% the inflated figure implied).
+    caveat: 'The recorded read_seconds (756.5) is whole-ladder wall time -- it includes the failed 460800
+      attempt, which this backup had no way to separate out. The 230400 read alone is therefore somewhat
+      under 756.5s. Against the 10-bits-per-byte model (16777216*10/230400 = 728.1s predicted) the ladder-inclusive
+      figure is 3.9% over, so the read alone is closer to the model than any prior USB-Serial/JTAG measurement
+      -- but this is a bound, not a measurement. This board was the last to be recorded that way: read_with_fallback
+      now times each rung separately and manifests carry read_seconds (successful rung), ladder_seconds
+      (wall total) and a per-rung attempts list. This entry predates that and was deliberately not retro-fitted
+      -- the split cannot be recovered after the fact.'
   vendor:
     value: LilyGO
     provenance: vendor_doc
@@ -308,22 +262,20 @@ board:
   model_variant:
     value: T-Display-S3 AMOLED Plus 1.91in (RM67162, single SPI)
     provenance: verified
-    note: 'Resolved 2026-09-04 by I2C scan on hardware, not by reading. Three
-      devices answered on SDA=3/SCL=2: 0x15 CST816 touch (so a 1.91in TOUCH
-      board), 0x51 PCF85063 RTC (so the PLUS, not the Touch), and 0x6b BQ25896
-      PMU (the BOARD_AMOLED_191_SPI signature). SDA=1/SCL=2 was silent, ruling
-      out the 1.47in Lite''s AXP2101. The SDA=6/SCL=7 pair was never driven --
-      the scan exits at the first hit, as LilyGO''s own autodetect does.
-      NOT determinable over USB: every board in this family is ESP32-S3R8 with
-      16MB flash and 8MB OPI PSRAM, which is why this needed a flash and a scan.'
+    note: 'Resolved 2026-09-04 by I2C scan on hardware, not by reading. Three devices answered on SDA=3/SCL=2:
+      0x15 CST816 touch (so a 1.91in TOUCH board), 0x51 PCF85063 RTC (so the PLUS, not the Touch), and
+      0x6b BQ25896 PMU (the BOARD_AMOLED_191_SPI signature). SDA=1/SCL=2 was silent, ruling out the 1.47in
+      Lite''s AXP2101. The SDA=6/SCL=7 pair was never driven -- the scan exits at the first hit, as LilyGO''s
+      own autodetect does. NOT determinable over USB: every board in this family is ESP32-S3R8 with 16MB
+      flash and 8MB OPI PSRAM, which is why this needed a flash and a scan.'
     scanner: projects/i2c-variant-scan
   variant_bus:
     value: single SPI, 40MHz (NOT QSPI)
     provenance: vendor_doc
     source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
-    note: 'RM67162_AMOLED_SPI sets d2 = d3 = -1. The QSPI pin set that two vendor
-      repos agreed on -- SCK 47, D0 18, D1 7, D2 48, D3 5, CS 6, RST 17 at 75MHz
-      -- is real and belongs to a DIFFERENT board. It does not apply here.'
+    note: RM67162_AMOLED_SPI sets d2 = d3 = -1. The QSPI pin set that two vendor repos agreed on -- SCK
+      47, D0 18, D1 7, D2 48, D3 5, CS 6, RST 17 at 75MHz -- is real and belongs to a DIFFERENT board.
+      It does not apply here.
   variant_candidates:
     value:
     - T-Display-AMOLED-Lite 1.47in 194x368 SH8501
@@ -334,87 +286,98 @@ board:
     - T-Display-S3-AMOLED-1.43/1.75 466x466 round, CO5300 or SH8601
     provenance: vendor_doc
     source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/README.MD
-    note: 'The first four come from the vendor support table, which lists all
-      four as ESP32-S3R8/16MB/8MB(OPI). The last two live in separate repos;
-      the 1.43/1.75 ships board files for 4MB, 8MB and 16MB flash, so flash size
-      does not exclude it either.'
+    note: The first four come from the vendor support table, which lists all four as ESP32-S3R8/16MB/8MB(OPI).
+      The last two live in separate repos; the 1.43/1.75 ships board files for 4MB, 8MB and 16MB flash,
+      so flash size does not exclude it either.
   probe_discriminates_variant:
     value: false
     provenance: probed
-    note: 'Every identifying field this repo collects turned out to be generic.
-      partition_table_md5 b32dcdb83b1674af27768c92b1f88a62 is byte-for-byte
-      espressif/arduino-esp32 tools/partitions/default_16MB.csv -- a stock
-      Arduino layout, not a LilyGO board file. USB 303a:1001 is the generic
-      Espressif native USB-Serial/JTAG ID. The "arduino-lib-builder / v4.4.7"
-      app description is the standard arduino-esp32 core build stamp. Useful to
-      know: these three fields identify a BUILD, never a board.'
+    note: 'Every identifying field this repo collects turned out to be generic. partition_table_md5 b32dcdb83b1674af27768c92b1f88a62
+      is byte-for-byte espressif/arduino-esp32 tools/partitions/default_16MB.csv -- a stock Arduino layout,
+      not a LilyGO board file. USB 303a:1001 is the generic Espressif native USB-Serial/JTAG ID. The "arduino-lib-builder
+      / v4.4.7" app description is the standard arduino-esp32 core build stamp. Useful to know: these
+      three fields identify a BUILD, never a board.'
   variant_evidence_weak:
     value: WRONG -- it pointed at the non-touch board; the scan says Plus
     provenance: community
     source: https://raw.githubusercontent.com/Xinyuan-LilyGO/T-Display-S3-AMOLED/main/boards/lilygo-t-amoled.json
-    note: 'KEPT AS A RECORD OF A FAILED INFERENCE, not as evidence. That board
-      file declares flash_size 16MB, flash_mode qio, memory_type qio_opi, hwids
-      [0x303A,0x1001] and partitions default_16MB.csv -- all four match this
-      probe, and the factory app era matched too. Every one of those checks
-      passed and the conclusion was still wrong, because the file matches a
-      SIBLING. The corroboration pass predicted exactly this ("the same board
-      file would match several siblings"), which is why it was recorded as
-      circumstantial and never written into a pinmap. Four matching fields is
-      not identification when the fields are shared across a product line.'
+    note: KEPT AS A RECORD OF A FAILED INFERENCE, not as evidence. That board file declares flash_size
+      16MB, flash_mode qio, memory_type qio_opi, hwids [0x303A,0x1001] and partitions default_16MB.csv
+      -- all four match this probe, and the factory app era matched too. Every one of those checks passed
+      and the conclusion was still wrong, because the file matches a SIBLING. The corroboration pass predicted
+      exactly this ("the same board file would match several siblings"), which is why it was recorded
+      as circumstantial and never written into a pinmap. Four matching fields is not identification when
+      the fields are shared across a product line.
   bsp_component:
     value: none exists
     provenance: vendor_doc
     source: https://components.espressif.com/
-    note: 'Searched the ESP Component Registry and espressif/esp-bsp: no board
-      support package exists for ANY variant in this family. The "check for a
-      BSP first" shortcut that the research_queue recommends is closed for this
-      board -- a panel driver must be written or a third-party one adopted.'
+    note: 'Searched the ESP Component Registry and espressif/esp-bsp: no board support package exists
+      for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
+      is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
 - date: '2026-09-05'
-  tested: restore
-  method: 'Read the full 16MB back after the restore and compared it against the
-    backup region by region -- bootloader, partition table, and each of the six
-    partitions -- rather than relying on a whole-image hash. The comparison was
-    validated first against two controls: the backup against itself (all regions
-    zero) and against an unrelated 16MB image (differences everywhere, with the
-    per-region totals reconciling exactly against the whole-image count, which
-    is what proves the regions leave no gap a difference could hide in).'
+  tested: firmware_running
+  method: 'Flashed LilyGO''s published factory image at 0x0 through the backup
+    gate, then re-probed and compared app_elf_sha256. Boot confirmed separately
+    by reading the 20KB nvs partition and diffing it against the pre-flash
+    backup rather than by watching a console.'
   result: verified
-  note: 'BIT-IDENTICAL. Zero differing bytes across all 16,777,216, every region,
-    and the read-back sha256 equals the backup''s exactly
-    (248da9dd5525c5e276e46a07d9b3d8672ea2f2aeac17263381aba1690badc2b0).
-    First 16MB restore verification in the repo -- double the previous largest --
-    and the first verified after DIFFERENT firmware ran on the board: this one
-    had projects/i2c-variant-scan flashed onto it, ran it, and was then restored.
-    A caveat was recorded BEFORE the measurement: the verification came hours and
-    several power cycles after the restore, so a non-zero nvs delta could not
-    have been attributed to the restore rather than to the firmware''s own boots.
-    The zero result makes that caveat moot -- nothing wrote to flash at all, so
-    there is nothing for the extra boots to have confounded. Kept rather than
-    deleted, because it was the right caveat for the result it was written
-    against.
-    Places this board with the ESP8266 (0 bytes) rather than the QT Pys (50, 50,
-    49 in nvs): its arduino firmware writes nothing to flash on boot.'
+  note: 'THE VERSION STRINGS CANNOT VERIFY THIS FLASH. The published image and
+    the image it replaced carry byte-identical descriptors -- project
+    arduino-lib-builder, version "esp-idf: v4.4.7 38eeba213a", built Mar 5 2024
+    12:12:53. All of it unchanged before and after. The only field that moved is
+    app_elf_sha256: 61d714e4... -> b697e0d2..., matching the downloaded image
+    exactly. esp_app_desc_t carries exactly one field that identifies a build,
+    and it is not any of the human-readable ones.
+    Pre-flash diff established the risk was low: bootloader IDENTICAL (0 of
+    32768 bytes differ) and partition table IDENTICAL (0 of 4096), so only app0
+    changed. The apps themselves differ in 1,769,209 of 2,501,392 bytes (70.7%),
+    and the resident app was 8,784 bytes longer -- walking the six ESP image
+    segments showed everything past its end was cleanly 0xff, so the earlier
+    "contains data" reading was a naive scan against the wrong boundary.
+    BOOT EVIDENCE: 688 of 20,480 nvs bytes changed against the pre-flash backup.
+    The USB console stays silent under this firmware, but that is not a
+    regression -- projects/i2c-variant-scan printed over the same USB-Serial/JTAG
+    console earlier the same night, so the path works and this sketch simply
+    does not use it. Silence was not treated as evidence either way.'
+- date: '2026-09-05'
+  tested: restore
+  method: 'Read the full 16MB back after the restore and compared it against the backup region by region
+    -- bootloader, partition table, and each of the six partitions -- rather than relying on a whole-image
+    hash. The comparison was validated first against two controls: the backup against itself (all regions
+    zero) and against an unrelated 16MB image (differences everywhere, with the per-region totals reconciling
+    exactly against the whole-image count, which is what proves the regions leave no gap a difference
+    could hide in).'
+  result: verified
+  note: 'BIT-IDENTICAL. Zero differing bytes across all 16,777,216, every region, and the read-back sha256
+    equals the backup''s exactly (248da9dd5525c5e276e46a07d9b3d8672ea2f2aeac17263381aba1690badc2b0). First
+    16MB restore verification in the repo -- double the previous largest -- and the first verified after
+    DIFFERENT firmware ran on the board: this one had projects/i2c-variant-scan flashed onto it, ran it,
+    and was then restored. A caveat was recorded BEFORE the measurement: the verification came hours and
+    several power cycles after the restore, so a non-zero nvs delta could not have been attributed to
+    the restore rather than to the firmware''s own boots. The zero result makes that caveat moot -- nothing
+    wrote to flash at all, so there is nothing for the extra boots to have confounded. Kept rather than
+    deleted, because it was the right caveat for the result it was written against. Places this board
+    with the ESP8266 (0 bytes) rather than the QT Pys (50, 50, 49 in nvs): its arduino firmware writes
+    nothing to flash on boot.'
 - date: '2026-09-04'
   tested: board.model_variant
-  method: 'Flashed projects/i2c-variant-scan and read the console. Reproduces
-    LilyGo_AMOLED::begin()''s autodetect: probe SDA=1/SCL=2 for AXP2101, then
-    SDA=3/SCL=2 for CST816 and PCF85063, then SDA=6/SCL=7 for SY6970, stopping
-    at the first hit. Backup taken and verified first; board restored after.'
+  method: 'Flashed projects/i2c-variant-scan and read the console. Reproduces LilyGo_AMOLED::begin()''s
+    autodetect: probe SDA=1/SCL=2 for AXP2101, then SDA=3/SCL=2 for CST816 and PCF85063, then SDA=6/SCL=7
+    for SY6970, stopping at the first hit. Backup taken and verified first; board restored after.'
   result: verified
-  note: 'SDA=1/SCL=2 silent. SDA=3/SCL=2 answered 0x15, 0x51, 0x6b -- touch, RTC
-    and BQ25896 PMU together, which is the Plus and nothing else in the family.
-    SDA=6/SCL=7 never driven. Consequence worth recording: all three conflicting
-    GPIOs resolve to the side the older non-touch repo would have got wrong --
-    GPIO38 is OL_EN (panel power enable) not PIN_LED, GPIO21 is touch INT not a
-    button, and GPIO4''s ADC path is dead code shadowed by the BQ25896. The
-    circumstantial evidence recorded earlier pointed at the non-touch board and
-    was wrong on all three.'
+  note: 'SDA=1/SCL=2 silent. SDA=3/SCL=2 answered 0x15, 0x51, 0x6b -- touch, RTC and BQ25896 PMU together,
+    which is the Plus and nothing else in the family. SDA=6/SCL=7 never driven. Consequence worth recording:
+    all three conflicting GPIOs resolve to the side the older non-touch repo would have got wrong -- GPIO38
+    is OL_EN (panel power enable) not PIN_LED, GPIO21 is touch INT not a button, and GPIO4''s ADC path
+    is dead code shadowed by the BQ25896. The circumstantial evidence recorded earlier pointed at the
+    non-touch board and was wrong on all three.'
 - date: '2026-09-05'
   tested: board.read_baud_max
   method: Full 16MB esptool read-flash via the backup baud ladder.
   result: verified
-  note: Seventh board, fourth USB-Serial/JTAG. Confirms 230400 for the interface
-    group a fourth time. Also the first 16MB read in the repo, so the size-derived
-    timeout was exercised at double the previous maximum without coming close to
-    the ceiling.
+  note: Seventh board, fourth USB-Serial/JTAG. Confirms 230400 for the interface group a fourth time.
+    Also the first 16MB read in the repo, so the size-derived timeout was exercised at double the previous
+    maximum without coming close to the ceiling.
+first_identified_at: '2026-09-05T00:59:26.653091+00:00'

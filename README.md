@@ -478,6 +478,65 @@ drives no peripheral at all, which is what makes it safe on a board whose pin
 map is unverified; a USB device stack is a peripheral. Keeping them separate
 preserves that guarantee for every other board.
 
+### The field that identifies a build, and the four that do not
+
+The README already says an `arduino-lib-builder` stamp identifies a *build*, not
+a board — the M5Stack Capsule and the LilyGo carry byte-identical ones. Flashing
+LilyGO's published factory image onto the LilyGo pushed that further, because
+here the stamp could not even distinguish **two different builds of the same
+project on the same board**.
+
+LilyGO ships a factory image for this family, and not where you would look for
+it: all fourteen releases carry **zero assets**, so the Releases page is empty.
+The image lives in the git tree at `firmware/firmware.bin` on `master`
+(2,566,928 bytes, last changed 2026-01-07).
+
+Its descriptor is byte-identical to the one already on the board:
+
+| field | resident app | published image |
+|---|---|---|
+| project | `arduino-lib-builder` | same |
+| version | `esp-idf: v4.4.7 38eeba213a` | same |
+| built | `Mar  5 2024 12:12:53` | same, to the second |
+| **`app_elf_sha256`** | `61d714e4…` | **`b697e0d2…`** |
+
+Four fields agree and the binaries are 70.7% different. `esp_app_desc_t` carries
+exactly **one** field that identifies a build, and it is none of the readable
+ones. The profile has recorded `app_elf_sha256` since the first probe; the
+mistake was reaching for the version string first.
+
+**The diff before the flash is what made it a safe operation**, and it is worth
+copying as a procedure. Comparing the downloaded image against the backup
+region by region:
+
+| region | result |
+|---|---|
+| bootloader (32KB) | **identical** — 0 bytes differ |
+| partition table (4KB) | **identical** — 0 bytes differ |
+| app0, over the image's extent | 1,769,209 of 2,501,392 differ (70.7%) |
+
+Same bootloader and same layout means only `app0` changes — which is what
+reduced this from "flash a vendor blob and hope" to a bounded operation.
+
+One reading needed correcting along the way. A first scan reported the backup
+"contains data" past the published image's extent, which looks like stale bytes
+from an earlier, larger flash. Walking the six ESP image segments to find where
+each app *actually* ends shows the resident app simply ran **8,784 bytes
+further**, and everything past it was cleanly `0xff`. The scan had compared
+against the wrong boundary — the image's length rather than the app's.
+
+**Verifying the flash needed evidence the board could not give in words.** After
+flashing, every readable descriptor field is exactly what it was before. Only
+`app_elf_sha256` moved, to `b697e0d2…`, matching the downloaded image.
+
+And the console stayed silent — which proves nothing on its own, so it was not
+treated as proof. Earlier the same night `projects/i2c-variant-scan` printed over
+this board's USB-Serial/JTAG console, so the path works and this firmware simply
+does not use it. Positive evidence came from a **20KB read** of `nvs` instead:
+**688 of 20,480 bytes changed** against the pre-flash backup, so the firmware
+booted and wrote. A targeted partition read is a cheap boot check when a board
+has nothing to say — seconds rather than the twelve minutes a full image costs.
+
 ### The first upgrade the gate was actually built for
 
 Every flash before this one was a test: write something, prove it ran, restore.
