@@ -13,6 +13,10 @@ tools and a 150-assertion increase, until an audit found four defects at once:
   - "98 assertions across 4 files" against an actual 249 across 7
   - tools/doctor.py and tools/usbwatch.py absent
 
+The build log then drifted the same way, and worse -- it sat at "29 commits,
+seven boards, 353 assertions" while the repo held nine boards and 360. Nothing
+checked it, because this file only ever guarded README.md. It guards both now.
+
 A later audit found a fifth of the same kind: "It runs four layers" with a
 four-row table against a smoke.sh that has five. The missing row was the real
 ESP-IDF layer -- the only one exercising the PRIMARY framework and the gate
@@ -164,6 +168,64 @@ check("the rows are numbered 1..N in order",
 # the one that went missing, and it is the one whose absence matters most.
 check("the ESP-IDF layer is named in the table",
       bool(re.search(r"ESP-IDF", HOWTO)), True)
+
+
+print("\nthe build log's counts match the repo")
+
+# docs/session-2026-09-04.md is a LIVING document -- it kept being extended --
+# so its counts drift exactly like README's did. Note what is NOT checked: the
+# commit count, which used to be in its header. A document cannot state its own
+# post-commit total, because the commit that updates the number changes it. A
+# check on it would fail on every single commit, which is a failure signal for a
+# non-problem. It was removed from the doc instead.
+LOG = os.path.join(REPO, "docs", "session-2026-09-04.md")
+check("the build log exists", os.path.exists(LOG), True)
+LOG_TEXT = open(LOG).read() if os.path.exists(LOG) else ""
+
+profiles = [f for f in glob.glob(os.path.join(REPO, "boards", "*.yaml"))
+            if not os.path.basename(f).startswith("_")]
+n_boards = len(profiles)
+check("there is at least one board profile", n_boards > 0, True)
+
+NUMBER = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+          7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven",
+          12: "twelve"}
+word = NUMBER.get(n_boards)
+check("the board count has a word for it", bool(word), True)
+
+if word:
+    check("the board-count heading is current",
+          bool(re.search(rf"^## {word.capitalize()} boards\s*$", LOG_TEXT, re.M | re.I)),
+          True)
+    check("the 'all N identified' line is current",
+          bool(re.search(rf"All {word} identified", LOG_TEXT, re.I)), True)
+
+# The table under that heading must have one row per profile. Scoped to the
+# section so the failure-taxonomy tables further down cannot satisfy it.
+m_sec = re.search(r"^## \w+ boards\s*$(.*?)^## ", LOG_TEXT, re.M | re.S)
+check("the board section is delimited", bool(m_sec), True)
+if m_sec:
+    rows = [l for l in m_sec.group(1).splitlines()
+            if l.startswith("| ") and not l.startswith("|---")
+            and not l.startswith("| Board ")]
+    check("the board table has one row per profile", len(rows), n_boards)
+
+m_log_a = re.search(r"to \*\*(\d+) across (\d+)\*\*", LOG_TEXT)
+check("the build log states an assertion count", bool(m_log_a), True)
+if m_log_a and "claimed" in DEFERRED:
+    check("the build log's assertion count matches README's",
+          int(m_log_a.group(1)), DEFERRED["claimed"])
+    check("the build log's file count matches the repo",
+          int(m_log_a.group(2)),
+          len(glob.glob(os.path.join(REPO, "tools", "test_*.py"))))
+
+# The origin commit is a fixed historical fact, so it IS checkable and stays.
+origin = re.search(r"from `([0-9a-f]{7,40})`", LOG_TEXT)
+check("the build log names an origin commit", bool(origin), True)
+if origin:
+    rc = subprocess.run(["git", "cat-file", "-e", origin.group(1) + "^{commit}"],
+                        cwd=REPO, capture_output=True).returncode
+    check("that origin commit exists in history", rc, 0)
 
 
 # Deferred to the end: the claimed total covers every test file INCLUDING this
