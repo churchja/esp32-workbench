@@ -418,24 +418,72 @@ with source URLs:
 **`pinmap` is deliberately still `{}`.** Two LilyGO-owned sources assign
 different *functions* to the same GPIOs on boards both label 1.91":
 
-| GPIO | Non-touch build | Touch / Plus build |
+| GPIO | One build | Another build |
 |---|---|---|
 | **38** | `PIN_LED` — green LED, confirmed in the schematic netlist | **`OL_EN` — AMOLED panel power enable** |
 | **21** | button with a 10K pull-up | touch controller INT |
+| **4** | battery sense ADC (1.91") | **SD-card MISO (T4-S3)** |
 
 Writing either set down would be a coin flip on a live rail. The QSPI pins two
 repos *do* agree on are kept as a note-level lead, not a pinmap, because a third
 vendor file disagrees.
+
+A second pass corroborated each finding against a *different* source than the
+one it came from — 24 checks, 21 agreeing at low risk. It sharpened the picture
+in one direction only: **more variant-dependent, not less.**
+
+The one contradiction is instructive. The first pass reported the battery
+divider ratio as "not established"; the second extracted the vendor schematic's
+Altium netlist and found it exactly — `BAT → R15 10K → BAT_VOLT → R16 10K → GND`,
+ratio **2.0** on GPIO4, independently confirmed by the driver's
+`analogReadMilliVolts(adcPins) * 2`. A value, from a vendor source, corroborated
+twice. It is still not in the profile as a value, because of what came with it:
+
+| Variant | Battery sense |
+|---|---|
+| 1.91" QSPI | `adcPins = 4`, no PMU — **ratio 2.0 applies** |
+| 1.91" SPI / Plus | `adcPins = 4` but a PMU shadows it; reads BQ25896 over I2C. The ADC path is dead code |
+| 1.47" Lite | `adcPins = -1`, AXP2101 — **no divider exists** |
+| 2.41" T4-S3 | `adcPins = -1`, SY6970 — no divider, and **GPIO4 is SD-card MISO** |
+
+A hardcoded `analogRead(4) * 2` is correct on one of four boards, reads a card
+data line on another, and on the remaining two returns a plausible-looking wrong
+number instead of failing. That is worse than having no value at all — which is
+the argument for `status: blocked` over a best guess, stated as evidence rather
+than as caution.
+
+Worth separating, because it changes what is actually risky: the display **bus**
+parameters — clock, command/address bits, SPI mode — cannot damage anything if
+wrong. Worst case is a blank or garbled panel. The hazard is entirely in the
+*pins* that travel alongside them.
 
 One source turned out to disagree with the hardware outright: the non-touch
 schematic shows a **W25Q32 (4MB)** where this unit probed **W25Q128 (16MB)**.
 A published vendor schematic is one source, not ground truth — recorded as a
 `schematic_trust` queue entry so the next reader does not take it on faith.
 
-Four of the five queue entries are `blocked` on a single physical observation:
-**look at the panel.** Its size and shape split the family, and no amount of
-reading substitutes for that. Recorded as a negative result so the next session
-does not repeat the search.
+Four of the five queue entries are `blocked` on resolving the variant — and the
+research turned up a **programmatic** way to do that, which is better than the
+one I first wrote down. LilyGO's own library autodetects the board by I2C probe
+in `LilyGo_AMOLED::begin()`:
+
+| Probe | Result |
+|---|---|
+| `Wire.begin(1,2)` → AXP2101 present | 1.47" Lite |
+| `Wire.begin(3,2)` → CST816 present | a 1.91" **touch** board… |
+| …then `0x51` (PCF85063 RTC) present / absent | …**Plus** (SPI) / **Touch** (QSPI) |
+| `Wire.begin(6,7)` → SY6970 present | 2.41" T4-S3 |
+| none of the above | 1.91" **non-touch** (QSPI) |
+
+Non-destructive, vendor-sanctioned — their library runs it on every boot across
+every family member — and it costs one flash, which the gate already permits
+because this board has a backup.
+
+Looking at the panel splits most of the family too, but **not** the three 1.91"
+builds, and that is precisely the split GPIO38, GPIO21 and GPIO4 turn on. The
+I2C scan resolves it; eyeballing does not. Recorded as a negative result plus a
+concrete next action, so the next session runs the scan rather than repeating
+the search.
 
 ### Not validated
 

@@ -169,12 +169,21 @@ research_queue:
   why: Six sibling boards share ESP32-S3R8 + 16MB flash + 8MB OPI PSRAM, and the partition
     table, USB ID and app description are all stock arduino-esp32 values. Nothing readable
     over USB separates them. Searched 2026-09-04; see board.probe_discriminates_variant.
-  how: 'PHYSICAL OBSERVATION, not more reading. Look at the panel: 1.47in (194x368,
-    small rectangle), 1.91in (240x536, tall rectangle), 2.41in (450x600), 1.64in (280x456),
-    or 1.43/1.75in (466x466, ROUND). Shape alone splits the family. Then check for a
-    touch layer, which separates the 1.91in non-touch from Touch/Plus -- and that split
-    is what makes GPIO38 and GPIO21 hazardous. Everything below stays blocked until this
-    is answered.'
+  how: 'TWO routes, and the cheap one is programmatic. (A) AN I2C SCAN -- LilyGO''s own
+    library already does exactly this in LilyGo_AMOLED::begin() to autodetect the board,
+    so it is a vendor-sanctioned sequence that runs on every family member: Wire.begin(1,2)
+    and probe AXP2101 -> 1.47in Lite; Wire.begin(3,2) and probe the CST816 touch address
+    -> a 1.91in TOUCH board, then probe 0x51 (PCF85063 RTC) -- present means 1.91in PLUS
+    (SPI), absent means 1.91in Touch (QSPI); Wire.begin(6,7) and probe SY6970 -> 2.41in
+    T4-S3; none of the above -> 1.91in non-touch (QSPI). Non-destructive, and the single
+    cheapest discriminating measurement. It does require flashing a scanner, so take the
+    backup first -- this board has one. (B) LOOK AT THE PANEL: 1.47in (194x368), 1.91in
+    (240x536, tall rectangle), 2.41in (450x600), 1.64in (280x456), 1.43/1.75in (466x466,
+    ROUND). Shape alone splits most of the family but does NOT separate the three 1.91in
+    builds, which is exactly the split that makes GPIO38, GPIO21 and GPIO4 hazardous.
+    Route A resolves that split and route B does not. Everything below stays blocked until
+    one of them is run.'
+  source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.cpp
 - field: display
   status: blocked
   why: Controller, resolution and bus are all variant-dependent, and the variant is unknown.
@@ -184,9 +193,17 @@ research_queue:
     (1.43/1.75in round). No BSP exists for any of them -- see board.bsp_component -- so a
     panel driver must be written or a third-party one adopted. Sources fetched 2026-09-04:
     LilyGo-AMOLED-Series src/LilyGo_AMOLED.h and initSequence.h.'
-  note: Vendor sources state the RM67162 as 240x536 (portrait) in one file and 536x240
+  note: 'Vendor sources state the RM67162 as 240x536 (portrait) in one file and 536x240
     (landscape) in another. Not a contradiction -- native portrait, used landscape -- but
     do not copy a WIDTH/HEIGHT pair without checking which convention the file uses.
+    Three further traps confirmed by corroboration: (1) 536x240 is a BOARD+PANEL property,
+    not an RM67162 property -- the Raydium datasheet does not list it among the IC''s
+    supported resolutions, so "has an RM67162" does not entail that geometry. (2) "1.91in
+    + RM67162" does not imply QSPI: LilyGo_AMOLED.h defines RM67162_AMOLED_SPI with
+    d2 = d3 = -1, a plain-SPI wiring of the same panel. (3) The bus clock is per panel in
+    the same header -- SH8501 30MHz, RM67162 QSPI 75MHz, RM67162 SPI 40MHz, RM690B0 36MHz
+    -- while cmdBits 8 and addrBits 24 are constant across all four, so those two travel
+    and the frequency does not.'
 - field: pinmap
   status: blocked
   why: 'Two LilyGO-owned sources assign DIFFERENT FUNCTIONS to the same GPIOs on boards
@@ -194,22 +211,49 @@ research_queue:
     Recording either set would be a coin flip on a live rail.'
   how: Resolve the variant physically first. Then take pins from the source matching THAT
     build, and mark every pin 'unverified' until a physical test confirms it.
-  danger: 'GPIO38 -- PIN_LED (green LED; non-touch schematic netlist U2 pin 43 -> R10 2K
-    -> D1 LED_GREEN -> GND) versus OL_EN, the AMOLED panel POWER ENABLE, on the Touch and
-    Plus schematics. Same pin, one drives an indicator and the other gates the display
-    rail. GPIO21 -- button with a 10K pull-up (non-touch net USET_KEY/KEY3) versus touch
-    controller INT (Touch/Plus). Driving an input-with-interrupt as an output, or gating
-    a display rail while expecting an LED, are both real-hardware faults.'
+  danger: 'Three GPIOs carry different functions on different family members. GPIO38 --
+    PIN_LED (green LED; non-touch schematic netlist U2 pin 43 -> R10 2K -> D1 LED_GREEN
+    -> GND) versus OL_EN, the AMOLED panel POWER ENABLE, on the Touch and Plus schematics:
+    one drives an indicator, the other gates the display rail. GPIO21 -- button with a 10K
+    pull-up (non-touch net USET_KEY/KEY3) versus touch controller INT (Touch/Plus).
+    GPIO4 -- battery sense ADC on the 1.91in versus SD-card MISO on the T4-S3. Driving an
+    input-with-interrupt as an output, gating a display rail while expecting an LED, or
+    driving a card data line while expecting an analogue input, are all real-hardware
+    faults. Note that the display BUS parameters (clock, cmd/addr bits, SPI mode) are NOT
+    in this category -- getting those wrong yields a blank or garbled panel, not damage.
+    The hazard is the pins that travel alongside them.'
   note: 'The 1.91in QSPI set that two vendor repos DO agree on is CS 6, SCK 47, D0 18, D1
     7, D2 48, D3 5, RST 17 -- recorded here as a lead, deliberately NOT written into a
     pinmap section, because it is unconfirmed for this unit and a third vendor file
     (the LovyanGFX wrapper) disagrees.'
 - field: power
-  status: unknown
-  why: Battery connector, charge IC and the ADC divider ratio are board-level, and the
-    divider in particular silently corrupts every reading if guessed.
-  how: Vendor schematic for the CONFIRMED variant. The divider ratio was not established
-    by the 2026-09-04 search and must not be inferred.
+  status: blocked
+  why: 'The divider ratio WAS established -- but only for one variant, and the other three
+    do not have a divider at all. Recording it would be wrong on three boards out of four.'
+  how: 'Resolve the variant first, then use the matching row below. Do not carry a value
+    across rows.'
+  found:
+    lead: 'BOARD_AMOLED_191 (1.91in QSPI) -- divider ratio 2.0, on GPIO4. Altium netlist
+      in the vendor schematic reads BAT -> R15 10K -> BAT_VOLT -> R16 10K -> GND with a
+      C20 0.1uF filter, and BAT_VOLT lands on U2 pin 9 = GPIO4. Independently corroborated
+      by LilyGo_AMOLED.cpp getBattVoltage(), which does analogReadMilliVolts(adcPins) * 2
+      with the comment that the hardware divider halves the actual voltage.'
+    sources:
+    - https://raw.githubusercontent.com/Xinyuan-LilyGO/T-Display-S3-AMOLED/main/schematic/T-DISPLAY-S3-AMOLED.pdf
+    - https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.cpp
+    per_variant:
+    - 'BOARD_AMOLED_191 (1.91in QSPI): pmu = NULL, adcPins = 4. The ONLY variant that
+      executes the ADC path. Ratio 2.0 established.'
+    - 'BOARD_AMOLED_191_SPI (1.91in SPI / Plus-style): adcPins = 4 as well, BUT has a PMU,
+      so getBattVoltage() returns BQ25896 over I2C and never reaches the ADC branch.
+      adcPins = 4 is effectively dead code here and 2.0 is NOT verified for it.'
+    - 'BOARD_AMOLED_147 (1.47in SH8501): adcPins = -1, AXP2101 PMU. NO DIVIDER EXISTS.'
+    - 'BOARD_AMOLED_241 (2.41in T4-S3): adcPins = -1, SY6970 PMU. No divider -- and GPIO4
+      on this board is SD-card MISO, not a battery sense line.'
+  danger: 'GPIO4 is the battery ADC on the 1.91in and SD-card MISO on the T4-S3. Reading
+    "battery voltage" off GPIO4 on the wrong variant reads a card data line. Two of the
+    four variants have no divider at all and must be read over I2C from their PMU, so a
+    hardcoded analogRead * 2 returns a plausible-looking wrong number rather than failing.'
 - field: schematic_trust
   status: caution
   why: 'The non-touch T-DISPLAY-S3-AMOLED schematic shows U3 = W25Q32 (4MB). This unit
