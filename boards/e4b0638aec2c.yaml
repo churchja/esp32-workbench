@@ -164,21 +164,57 @@ identity:
 pinmap: {}
 peripherals: {}
 research_queue:
+- field: model_variant
+  status: resolved
+  why: 'Resolved on hardware 2026-09-04 by I2C scan -- T-Display-S3 AMOLED Plus 1.91in. See board.model_variant
+    and the verification_log entry. Kept rather than deleted because the METHOD is the reusable part:
+    no LilyGO AMOLED board can be told from its siblings over USB, so any future one needs the same
+    scan.'
+  how: python3 tools/esp32flash.py backup && flash projects/i2c-variant-scan && restore.
 - field: display
   status: unknown
-  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
-    records them.
-  how: Vendor schematic for the ESP32-S3 board carrying this display. Then check for an existing BSP component
-    -- search the ESP Component Registry (components.espressif.com) for the board name, and espressif/esp-bsp,
-    which already encodes panel type, offsets and pins for many vendor boards. Confirm the controller
-    part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+  why: The variant is known now, so the candidate set collapses to one row -- but the controller and
+    bus below come from vendor files, not from this board.
+  how: 'For the Plus: RM67162 over SINGLE SPI at 40MHz -- NOT the 75MHz QSPI wiring. LilyGo_AMOLED.h
+    RM67162_AMOLED_SPI sets d2 = d3 = -1, so the widely-quoted 4-data-line pin set belongs to a different
+    board. Geometry is 240x536 native portrait, used as 536x240 landscape. cmdBits 8 / addrBits 24
+    hold across the family; the clock does not. No BSP exists (board.bsp_component), so a driver must
+    be written or adopted.'
+  danger: The 536x240 figure is a board+panel property, not an RM67162 property -- the Raydium datasheet
+    does not list that geometry, so "has an RM67162" does not entail it.
 - field: pinmap
   status: unknown
-  why: GPIO assignment is a PCB routing decision, invisible to probing.
-  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
-    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
-    the vendor. Mark every pin 'unverified' until a physical test confirms it.
-  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+  why: The variant is settled, so the three cross-variant conflicts are settled with it. What remains
+    is that no pin has been confirmed ON THIS BOARD -- vendor files are one source and this unit already
+    caught a vendor schematic being wrong about its own flash part (see schematic_trust).
+  how: Take the Plus rows from LilyGo_AMOLED.h and its schematic, and mark every pin 'unverified'
+    until a physical test confirms it.
+  resolved_conflicts: All three now have an answer, and all three are the side the older non-touch
+    repo would have got WRONG. GPIO38 = OL_EN, the AMOLED panel POWER ENABLE -- not PIN_LED. GPIO21
+    = touch controller INT -- not a button. GPIO4 = nominally the battery ADC but SHADOWED by the
+    BQ25896 PMU, so the ADC path is dead code.
+  danger: Driving GPIO38 as an indicator LED gates the display rail. Driving GPIO21 as an output fights
+    a touch controller interrupt line. Both were live risks while the variant was unknown, which is
+    why no pinmap was written; they are still live for anyone copying the non-touch pin set onto this
+    board.
+- field: power
+  status: resolved
+  why: Settled by the variant. This board reads battery voltage over I2C from a BQ25896 PMU at 0x6b
+    -- confirmed present by the scan -- NOT through a resistive divider.
+  how: Use the PMU. LilyGo_AMOLED::getBattVoltage() returns BQ.getBattVoltage() on this variant and
+    never reaches the ADC branch.
+  danger: The divider ratio 2.0 on GPIO4, established from the vendor schematic and the driver source,
+    belongs to the 1.91in QSPI board and NOT to this one. Applying analogReadMilliVolts(4) * 2 here
+    exercises dead code and returns a plausible-looking wrong number rather than failing. This is
+    the concrete case for why it was never recorded as a value.
+- field: schematic_trust
+  status: caution
+  why: The non-touch T-DISPLAY-S3-AMOLED schematic shows U3 = W25Q32 (4MB). This unit probed 0xef/0x4018
+    = W25Q128 = 16MB, and the Touch and Plus schematics show W25Q128. So at least one published LilyGO
+    schematic disagrees with shipped hardware.
+  how: Treat any single schematic as one source, not as ground truth. Cross-check against the board
+    JSON, the library headers and -- where the chip can answer, as it did for flash and for the variant
+    itself -- against the silicon.
 _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0

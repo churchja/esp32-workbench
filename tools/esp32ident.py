@@ -763,14 +763,32 @@ def merge_profile(old, new):
 
     merged["identity"] = new_id
 
-    # Keep the research queue's resolved state rather than resurrecting items.
-    resolved = {i.get("field") for i in (old.get("research_queue") or [])
-                if isinstance(i, dict) and i.get("status") == "resolved"}
+    # The research queue is RESEARCH, not generated state, and must survive a
+    # re-probe intact.
+    #
+    # The earlier version of this used `old` only to decide which freshly
+    # generated items to DROP, then kept the new ones -- so a re-probe replaced
+    # a researched entry with the boilerplate template it started as, and
+    # deleted any field the generator does not emit at all. That silently
+    # destroyed five entries on a LilyGo profile: a resolved model_variant
+    # carrying the I2C procedure that identified the board, a resolved power
+    # entry, a schematic_trust warning, and the GPIO conflict notes on display
+    # and pinmap. It went unnoticed into a commit, because nothing about a
+    # successful probe looks like data loss.
+    #
+    # Rule: an OLD entry always wins. Generated entries only fill fields the
+    # old queue did not have, and are skipped for anything already answered.
+    old_queue = [i for i in (old.get("research_queue") or [])
+                 if isinstance(i, dict)]
+    old_fields = {i.get("field") for i in old_queue}
+    resolved = {i.get("field") for i in old_queue if i.get("status") == "resolved"}
     answered = {sec for sec in RESEARCHED_SECTIONS if old.get(sec)}
-    merged["research_queue"] = [
-        i for i in (merged.get("research_queue") or [])
-        if i.get("field") not in resolved and i.get("field") not in answered
-    ]
+    fresh = [i for i in (merged.get("research_queue") or [])
+             if isinstance(i, dict)
+             and i.get("field") not in old_fields
+             and i.get("field") not in resolved
+             and i.get("field") not in answered]
+    merged["research_queue"] = old_queue + fresh
 
     merged["first_identified_at"] = (old.get("first_identified_at")
                                      or old.get("identified_at"))

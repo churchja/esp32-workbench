@@ -145,8 +145,17 @@ OLD = {
                           "source": "https://x"}},
     "verification_log": [{"date": "2026-09-01", "tested": "board.read_baud_max",
                           "result": "verified"}],
-    "research_queue": [{"field": "power", "status": "resolved"},
-                       {"field": "display", "status": "unknown"}],
+    # These carry CONTENT deliberately. The bare versions this fixture used to
+    # hold were why the merge could replace a researched entry with generated
+    # boilerplate and pass: the assertions compared field NAMES, never bodies.
+    "research_queue": [
+        {"field": "power", "status": "resolved",
+         "why": "answered on hardware", "how": "read the PMU over I2C"},
+        {"field": "display", "status": "unknown",
+         "why": "researched at length", "danger": "GPIO38 gates the panel rail"},
+        {"field": "schematic_trust", "status": "caution",
+         "why": "a vendor schematic disagreed with the silicon"},
+    ],
 }
 NEW = {
     "profile_id": "aabbcc",
@@ -173,9 +182,38 @@ check("first_identified_at keeps the original",
       m["first_identified_at"], OLD["identified_at"])
 
 fields = {i["field"] for i in m["research_queue"]}
+byfield = {i["field"]: i for i in m["research_queue"]}
 check("already-answered section drops out of the queue", "pinmap" in fields, False)
-check("resolved item stays resolved", "power" in fields, False)
 check("genuinely open item remains", "display" in fields, True)
+
+# BEHAVIOUR CHANGE, made deliberately. This previously asserted that a resolved
+# item is DELETED from the queue. It is now kept, with its status and body,
+# because deleting it discards the record of how it was resolved -- and
+# validate_profiles --todo already filters `status != "resolved"`, so keeping it
+# does not pollute the open-work list.
+check("a resolved item is kept, not deleted", "power" in fields, True)
+check("and it stays resolved", byfield["power"]["status"], "resolved")
+
+# The gap the old fixture could not see: an old entry's CONTENT must survive a
+# re-probe. This is the regression that silently destroyed five researched
+# entries on a real profile and went unnoticed into a commit.
+check("a researched entry keeps its body",
+      byfield["display"].get("danger"), "GPIO38 gates the panel rail")
+check("and is not replaced by the generated template",
+      byfield["display"].get("why"), "researched at length")
+check("a resolved entry keeps its body too",
+      byfield["power"].get("how"), "read the PMU over I2C")
+
+# A field the generator does not emit at all must not vanish.
+check("a custom queue field survives", "schematic_trust" in fields, True)
+check("with its body intact", byfield["schematic_trust"].get("why"),
+      "a vendor schematic disagreed with the silicon")
+
+# And a genuinely new open item still gets added.
+m2 = merge_profile(OLD, {**NEW, "research_queue": [{"field": "antenna",
+                                                    "status": "unknown"}]})
+check("a new generated item is still added",
+      "antenna" in {i["field"] for i in m2["research_queue"]}, True)
 
 check("no prior profile -> new returned unchanged", merge_profile({}, NEW), NEW)
 check("None prior -> new returned unchanged", merge_profile(None, NEW), NEW)
