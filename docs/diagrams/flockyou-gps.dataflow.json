@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Flock-You promiscuous \u2014 detection with hardware GPS",
+    "output": "flockyou-gps.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "detection",
+        "label": "Detection path",
+        "focus": [
+          "radio",
+          "sniffer",
+          "ring",
+          "table"
+        ],
+        "note": "Frames are captured in interrupt context and handed to loop() through a lock-free ring."
+      },
+      {
+        "id": "gps",
+        "label": "Where coordinates enter",
+        "focus": [
+          "gnss",
+          "uart",
+          "gpsfix",
+          "table"
+        ],
+        "note": "GPS arrives on its own UART because the radio is busy hopping channels and cannot host an AP."
+      },
+      {
+        "id": "outputs",
+        "label": "Two consumers, two spellings",
+        "focus": [
+          "table",
+          "session",
+          "flask"
+        ],
+        "note": "The on-device session file and the live host wire use different key names on purpose."
+      }
+    ],
+    "viewBox": [
+      1080,
+      520
+    ]
+  },
+  "stages": [
+    {
+      "label": "Capture"
+    },
+    {
+      "label": "Ingest"
+    },
+    {
+      "label": "Buffer"
+    },
+    {
+      "label": "Correlate"
+    },
+    {
+      "label": "Emit"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "radio",
+      "type": "external",
+      "label": "2.4 GHz radio",
+      "sublabel": "WIFI_MODE_NULL",
+      "stage": 0,
+      "row": 0,
+      "tag": "hops 250ms"
+    },
+    {
+      "id": "gnss",
+      "type": "external",
+      "label": "ATGM336H",
+      "sublabel": "GPS + BeiDou",
+      "stage": 0,
+      "row": 2,
+      "tag": "3V3"
+    },
+    {
+      "id": "sniffer",
+      "type": "backend",
+      "label": "wifiSniffer()",
+      "sublabel": "IRAM_ATTR callback",
+      "stage": 1,
+      "row": 0,
+      "tag": "ISR"
+    },
+    {
+      "id": "uart",
+      "type": "backend",
+      "label": "fyProcessGPS()",
+      "sublabel": "UART2 RX GPIO44",
+      "stage": 1,
+      "row": 2,
+      "tag": "9600"
+    },
+    {
+      "id": "ring",
+      "type": "messagebus",
+      "label": "alert ring",
+      "sublabel": "lock-free buffer",
+      "stage": 2,
+      "row": 0,
+      "tag": "no mutex"
+    },
+    {
+      "id": "gpsfix",
+      "type": "database",
+      "label": "current fix",
+      "sublabel": "lat / lon / HDOP",
+      "stage": 2,
+      "row": 2,
+      "tag": "30s stale guard"
+    },
+    {
+      "id": "table",
+      "type": "database",
+      "label": "fyDet[200]",
+      "sublabel": "fyAddDetection()",
+      "stage": 3,
+      "row": 1,
+      "tag": "MAC-keyed"
+    },
+    {
+      "id": "session",
+      "type": "database",
+      "label": "session.json",
+      "sublabel": "SPIFFS + CRC32",
+      "stage": 4,
+      "row": 0,
+      "tag": "survives reboot"
+    },
+    {
+      "id": "flask",
+      "type": "external",
+      "label": "Flask host",
+      "sublabel": "api/flockyou.py",
+      "stage": 4,
+      "row": 2,
+      "tag": "USB CDC"
+    }
+  ],
+  "flows": [
+    {
+      "id": "frames",
+      "from": "radio",
+      "to": "sniffer",
+      "label": "802.11 frames",
+      "classification": "probe req + OUI + IE",
+      "variant": "emphasis",
+      "labelDy": 53
+    },
+    {
+      "id": "nmea",
+      "from": "gnss",
+      "to": "uart",
+      "label": "NMEA sentences",
+      "classification": "checksum gated",
+      "variant": "default"
+    },
+    {
+      "id": "ring-write",
+      "from": "sniffer",
+      "to": "ring",
+      "label": "lock-free write",
+      "classification": "interrupt context",
+      "variant": "emphasis"
+    },
+    {
+      "id": "decode",
+      "from": "uart",
+      "to": "gpsfix",
+      "label": "TinyGPS++ decode",
+      "classification": "HDOP x 5 = metres",
+      "variant": "default"
+    },
+    {
+      "id": "drain",
+      "from": "ring",
+      "to": "table",
+      "label": "drainAlertQueue()",
+      "classification": "loop() context",
+      "variant": "emphasis"
+    },
+    {
+      "id": "stamp",
+      "from": "gpsfix",
+      "to": "table",
+      "label": "fyAttachGPS()",
+      "classification": "only when fresh",
+      "variant": "security"
+    },
+    {
+      "id": "persist",
+      "from": "table",
+      "to": "session",
+      "label": "fySerializeDet()",
+      "classification": "lat / lon / acc",
+      "variant": "default"
+    },
+    {
+      "id": "wire",
+      "from": "table",
+      "to": "flask",
+      "label": "emitDetectionJSON()",
+      "classification": "latitude / longitude / accuracy",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Two contexts, no mutex",
+      "items": [
+        "Sniffer runs in ISR, only writes the ring",
+        "loop() alone touches the detection table",
+        "So the port dropped the reference's mutexes"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Why the GPS is wired, not wireless",
+      "items": [
+        "Radio retunes every 250ms to follow hopping cameras",
+        "A softAP would pin it to one channel",
+        "No phone link, so GPS needs its own UART"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Two consumers, two spellings",
+      "items": [
+        "session.json uses lat / lon / acc",
+        "Live wire uses latitude / longitude / accuracy",
+        "Flask already parses the longer names"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ESP32 Workbench \u2014 the backup gate",
+    "output": "workbench-gate.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "write-path",
+        "label": "Write path",
+        "focus": [
+          "idf",
+          "pio",
+          "gate",
+          "esptool",
+          "board"
+        ],
+        "note": "Both toolchains are hooked, so neither can reach the board without passing the gate."
+      },
+      {
+        "id": "identity",
+        "label": "Identity and evidence",
+        "focus": [
+          "board",
+          "ident",
+          "profiles",
+          "backups"
+        ],
+        "note": "A board is identified by its eFuse MAC, and that MAC is the key everything else is filed under."
+      },
+      {
+        "id": "refusal",
+        "label": "What blocks a write",
+        "focus": [
+          "gate",
+          "backups"
+        ],
+        "note": "The gate reads only backups/<mac>/ and refuses when no verified image is filed there."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "idf",
+      "type": "external",
+      "label": "ESP-IDF",
+      "sublabel": "idf.py flash",
+      "pos": [
+        40,
+        200
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "pio",
+      "type": "external",
+      "label": "PlatformIO",
+      "sublabel": "pio run -t upload",
+      "pos": [
+        40,
+        330
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "esp32flash.py",
+      "sublabel": "the gate",
+      "pos": [
+        290,
+        258
+      ],
+      "size": [
+        170,
+        72
+      ],
+      "tag": "fail closed"
+    },
+    {
+      "id": "backups",
+      "type": "database",
+      "label": "backups/<mac>/",
+      "sublabel": "image + manifest.json",
+      "pos": [
+        290,
+        448
+      ],
+      "size": [
+        170,
+        62
+      ]
+    },
+    {
+      "id": "esptool",
+      "type": "backend",
+      "label": "esptool",
+      "sublabel": "read / write flash",
+      "pos": [
+        560,
+        262
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "board",
+      "type": "external",
+      "label": "ESP32 board",
+      "sublabel": "USB serial",
+      "pos": [
+        810,
+        262
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "ident",
+      "type": "backend",
+      "label": "esp32ident.py",
+      "sublabel": "read-only probe",
+      "pos": [
+        560,
+        92
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "profiles",
+      "type": "database",
+      "label": "boards/<mac>.yaml",
+      "sublabel": "provenance per fact",
+      "pos": [
+        810,
+        92
+      ],
+      "size": [
+        150,
+        62
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "~/esp32-workbench",
+      "wraps": [
+        "gate",
+        "backups",
+        "esptool",
+        "ident",
+        "profiles"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "no write without a verified backup of THIS board",
+      "wraps": [
+        "gate",
+        "backups"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "idf-hook",
+      "from": "idf",
+      "to": "gate",
+      "label": "hooked",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pio-hook",
+      "from": "pio",
+      "to": "gate",
+      "label": "hooked",
+      "variant": "emphasis"
+    },
+    {
+      "id": "gate-checks",
+      "from": "gate",
+      "to": "backups",
+      "label": "must find a verified image",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "gate-permits",
+      "from": "gate",
+      "to": "esptool",
+      "label": "write permitted",
+      "variant": "emphasis"
+    },
+    {
+      "id": "esptool-board",
+      "from": "esptool",
+      "to": "board",
+      "label": "460800 \u2192 230400 \u2192 115200",
+      "labelDy": 55
+    },
+    {
+      "id": "esptool-stores",
+      "from": "esptool",
+      "to": "backups",
+      "label": "full image + sha256",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "right"
+    },
+    {
+      "id": "board-probe",
+      "from": "board",
+      "to": "ident",
+      "label": "probe, never writes",
+      "fromSide": "top",
+      "toSide": "right"
+    },
+    {
+      "id": "ident-profile",
+      "from": "ident",
+      "to": "profiles",
+      "label": "keyed by eFuse MAC"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Identity",
+      "items": [
+        "Keyed by eFuse MAC \u2014 not port, not model",
+        "Ports change on every replug",
+        "Same model is not the same board"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Gate",
+      "items": [
+        "Hooks idf.py flash and pio run -t upload",
+        "Checks backups/<mac>/ and nowhere else",
+        "Covers erase, restore and flash"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Evidence",
+      "items": [
+        "sha256 proves the image is intact",
+        "app_elf_sha256 proves which firmware",
+        "Every baud rung recorded, failures too"
+      ]
+    }
+  ]
+}

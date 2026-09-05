@@ -31,3 +31,10 @@ projects/_validate/
 __pycache__/
 .DS_Store
 .scratch_build/
+
+# Archify diagram evidence. The .json specs ARE tracked -- they are the source,
+# and `archify deliver` regenerates the HTML from them. The visual-check PNGs
+# and receipts are re-derivable browser evidence (~1.4MB per run) that churn on
+# every regeneration, so they follow the same rule as backups/**/*.bin: keep the
+# record that says what was checked, not the bytes it was checked against.
+docs/diagrams/*.visual-check.*
