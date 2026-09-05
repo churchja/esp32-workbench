@@ -274,6 +274,30 @@ display:
       remains uninformative and the possibility that the panel is simply dead
       has not been excluded. The validator rejected a "verified" claim here,
       correctly.'
+  color_format:
+    value: RGB565, no byte swap, not inverted
+    provenance: verified
+    note: 'Solid fills of 0xFFFF, 0xF800, 0x07E0 and 0x001F rendered as white,
+      red, green and blue in that order. Byte-swapped RGB565 would have shown
+      red as a dark blue-green and green as a dark purple; an inverted panel
+      would have shown each as its complement. Neither happened, so the pixel
+      format set by the init sequence (0x3A -> 0x75) matches what esp_lcd sends
+      and needs no swap or invert flag.'
+  addressing_covers_panel:
+    value: full 240x536 addressed with no gaps
+    provenance: verified
+    note: 'The fill wrote in 16-row stripes from 0 to CONFIG_HWE_DISPLAY_HEIGHT
+      across the full width, and each colour covered the panel completely. That
+      rules out a column/row offset and a wrong width or height -- either would
+      have left an unpainted band or wrapped the image.'
+  orientation:
+    value: NOT established by the fill test
+    provenance: unverified
+    note: 'Deliberately not claimed. A uniform colour is rotation-invariant, so
+      filling the screen cannot reveal a wrong swap_xy or mirror -- the demo
+      applies swap_xy(true) and mirror(true, false) and a solid fill looks
+      identical under any of them. Only asymmetric content settles it, which the
+      LVGL scroll text that follows the fill would do.'
   controller:
     value: RM67162
     provenance: community
@@ -485,6 +509,15 @@ board:
       for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-05'
+  tested: [display.color_format, display.addressing_covers_panel]
+  method: 'The same solid-fill run. Colours were reported correct and in order,
+    and each covered the whole panel.'
+  result: verified
+  note: 'Scope kept narrow on purpose. This proves the pixel format and that the
+    addressed area matches the panel. It does NOT prove orientation: a uniform
+    colour is rotation-invariant, so swap_xy and mirror are untested and
+    display.orientation stays unverified.'
 - date: '2026-09-05'
   tested: [pinmap.lcd_pwr, pinmap.lcd_rst, pinmap.lcd_sck, pinmap.lcd_d0_mosi,
            pinmap.lcd_cs, pinmap.lcd_dc]

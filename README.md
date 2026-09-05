@@ -869,10 +869,22 @@ no pin value, bus width, polarity or init sequence bridges them.
 
 `projects/lilygo-amoled-demo` now drives it: `dc_gpio_num = 7`,
 `lcd_cmd_bits = 8`, LilyGO's `rm67162_spi_cmd` sequence, regular SPI at 40MHz.
-Full-screen white, red, green and blue confirmed on the panel, painted directly
-before `lv_init()` so nothing in LVGL could explain the result either way. The
-pin map is now **`verified`** on hardware: PWR 38, RST 17, SCK 47, MOSI 18,
-CS 6, DC 7.
+Full-screen white, red, green and blue confirmed on the panel **in that order**,
+painted directly before `lv_init()` so nothing in LVGL could explain the result
+either way. The pin map is now **`verified`** on hardware: PWR 38, RST 17,
+SCK 47, MOSI 18, CS 6, DC 7.
+
+The colours settle two further things and deliberately not a third:
+
+| claim | status | why |
+|---|---|---|
+| RGB565, no swap, not inverted | **verified** | byte-swapped RGB565 shows red as dark blue-green; an inverted panel shows complements. Neither happened |
+| addressing covers 240×536 | **verified** | 16-row stripes over the full height left no unpainted band and did not wrap |
+| orientation (`swap_xy`, `mirror`) | **unverified** | a uniform colour is rotation-invariant — a solid fill cannot reveal a wrong rotation, only asymmetric content can |
+
+That last row is the point of writing them separately. It would have been easy to
+call "the display works" one verified fact; it is three, and one of them is not
+tested by the experiment that proved the other two.
 
 **The wrong correction cost most of the time.** An earlier reading here was that
 GPIO7 "becomes DC" — which was right. It was then overturned, and the overturning
