@@ -199,6 +199,12 @@ if word:
           True)
     check("the 'all N identified' line is current",
           bool(re.search(rf"All {word} identified", LOG_TEXT, re.I)), True)
+    # The opening paragraph states the count too, and drifted to "Nine boards"
+    # under a "## Ten boards" heading because only the heading was checked.
+    # Every place the number appears in prose needs to be one of these.
+    check("the header's board count is current",
+          bool(re.search(rf"\b{word} boards\b", LOG_TEXT.split("## ")[0], re.I)),
+          True)
 
 # The table under that heading must have one row per profile. Scoped to the
 # section so the failure-taxonomy tables further down cannot satisfy it.
