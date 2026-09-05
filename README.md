@@ -880,11 +880,18 @@ The colours settle two further things and deliberately not a third:
 |---|---|---|
 | RGB565, no swap, not inverted | **verified** | byte-swapped RGB565 shows red as dark blue-green; an inverted panel shows complements. Neither happened |
 | addressing covers 240×536 | **verified** | 16-row stripes over the full height left no unpainted band and did not wrap |
-| orientation (`swap_xy`, `mirror`) | **unverified** | a uniform colour is rotation-invariant — a solid fill cannot reveal a wrong rotation, only asymmetric content can |
+| orientation (`swap_xy(true)`, `mirror(true,false)`) | **verified** | needed the LVGL scroll text — the first asymmetric content — which reads upright and left-to-right |
 
-That last row is the point of writing them separately. It would have been easy to
-call "the display works" one verified fact; it is three, and one of them is not
-tested by the experiment that proved the other two.
+Writing them separately is the point. It would have been easy to call "the
+display works" one verified fact. It is three, and the **third needed a
+different experiment**: a uniform colour is rotation-invariant, so the fills that
+proved colour format and addressing were structurally incapable of settling
+orientation however carefully they were run.
+
+The LilyGo's display is now fully characterised — pins, transport, init
+sequence, colour format, addressing and orientation, all verified on the board
+rather than read from a document. It began the night as *"no ESP-IDF support
+exists for this variant."*
 
 **The wrong correction cost most of the time.** An earlier reading here was that
 GPIO7 "becomes DC" — which was right. It was then overturned, and the overturning

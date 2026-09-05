@@ -291,13 +291,16 @@ display:
       rules out a column/row offset and a wrong width or height -- either would
       have left an unpainted band or wrapped the image.'
   orientation:
-    value: NOT established by the fill test
-    provenance: unverified
-    note: 'Deliberately not claimed. A uniform colour is rotation-invariant, so
-      filling the screen cannot reveal a wrong swap_xy or mirror -- the demo
-      applies swap_xy(true) and mirror(true, false) and a solid fill looks
-      identical under any of them. Only asymmetric content settles it, which the
-      LVGL scroll text that follows the fill would do.'
+    value: swap_xy(true) + mirror(true, false) -> upright landscape
+    provenance: verified
+    note: 'Settled by asymmetric content: the LVGL scroll text that follows the
+      solid fills reads upright and left-to-right. The fills could not establish
+      this -- a uniform colour is rotation-invariant, so it looks identical under
+      any swap_xy/mirror combination. Recorded as a separate fact from
+      color_format and addressing for exactly that reason: one experiment proved
+      those two and was structurally incapable of proving this one.
+      Native panel geometry is 240x536 portrait; these two calls present it as
+      536x240 landscape, which is how the demo and LilyGO''s own examples use it.'
   controller:
     value: RM67162
     provenance: community
@@ -312,7 +315,7 @@ research_queue:
     scan.'
   how: python3 tools/esp32flash.py backup && flash projects/i2c-variant-scan && restore.
 - field: display
-  status: blocked
+  status: resolved
   why: The variant is known now, so the candidate set collapses to one row -- but the controller and
     bus below come from vendor files, not from this board.
   how: 'For the Plus: RM67162 over SINGLE SPI at 40MHz -- NOT the 75MHz QSPI wiring. LilyGo_AMOLED.h
@@ -509,6 +512,16 @@ board:
       for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-05'
+  tested: display.orientation
+  method: 'Read the LVGL scroll text that runs after the solid fills -- the first
+    asymmetric content put on the panel.'
+  result: verified
+  note: 'Text upright and left-to-right, so swap_xy(true) + mirror(true, false)
+    is correct for this board. This needed a SEPARATE observation from the fills:
+    a uniform colour cannot distinguish any rotation from any other, so the
+    experiment that verified colour format and addressing could not have settled
+    this one however carefully it was run.'
 - date: '2026-09-05'
   tested: [display.color_format, display.addressing_covers_panel]
   method: 'The same solid-fill run. Colours were reported correct and in order,
