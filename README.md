@@ -752,12 +752,48 @@ Five source lanes were searched — LilyGO's repos, the ESP Component Registry,
 with source URLs:
 
 - **No BSP exists** for any variant, so the research queue's own "check for a
-  BSP first" shortcut is closed here. A panel driver must be written or a
-  third-party one adopted.
+  BSP first" shortcut is closed here. `espressif/esp-bsp` ships 26 board support
+  packages — ESP-BOX, Korvo, six M5Stack boards, Waveshare — and not one LilyGO.
+  *(A panel driver does exist, which this first pass missed; see below.)*
 - The circumstantial case for the 1.91" non-touch board is real but weak: its
   board JSON matches flash size, flash mode, memory type, USB hwids and
   partition file. The same file would match several siblings, so it is recorded
   as `community` provenance and labelled circumstantial, not as an answer.
+
+### A driver does exist, and the first search was malformed
+
+The line above originally read *"a panel driver must be written or a third-party
+one adopted."* Re-checking once the variant was known found one already
+published:
+
+**`crosser/esp-lcd-panel-rm67162` v0.3.0** — "ESP LCD RM67162 OLED driver",
+ESP-IDF ≥ 5.0, ships an `rm67162_lvgl-demo` example. Its readme is unusually
+well matched to this board:
+
+> only works when the controller is connected over **3-Wire SPI**, and does not
+> use DC pin … tested only against: **LilyGO T-Display-S3-AMOLED** dev module.
+
+Three-wire SPI is how this board is wired (`RM67162_AMOLED_SPI`, `d2 = d3 = -1`),
+not the QSPI mode its siblings use. **Caveat: 17 total downloads and one
+maintainer.** A lead worth trying, not a vendor artifact.
+
+It also **corroborates GPIO38 from an unrelated direction.** The readme notes the
+LilyGO board "has a Display Power GPIO pin that needs to be set to high to enable
+display", and that the Waveshare board it also supports has none (pass `-1`).
+Someone writing a driver against working hardware reached the same pin and the
+same meaning this repo took from a schematic.
+
+Two other routes exist if it does not fit: `esp-bsp` ships **`esp_bsp_generic`**,
+which configures an SPI display on arbitrary pins via Kconfig; and Espressif
+publishes `esp_lcd_sh8601` and `esp_lcd_co5300` — official drivers for the panels
+on *other* variants of this family, though not this one.
+
+**Why the first pass said none existed.** Its registry queries used `?search=`,
+which the API rejects as an unknown field. Four searches returned no results
+because they were **malformed, not because nothing was there.** The correct
+parameter is `?q=`, established by running a control query for a component known
+to exist — the same discipline that catches a test suite reporting zero failures
+because it counted the wrong thing.
 
 **`pinmap` is deliberately still `{}`.** Two LilyGO-owned sources assign
 different *functions* to the same GPIOs on boards both label 1.91":
