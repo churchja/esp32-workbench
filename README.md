@@ -289,9 +289,10 @@ rung**. Two have now been measured, and the result is that it is not a constant:
 | Board | Discarded 460800 attempt |
 |---|---|
 | Satellite1 CORE | 4.7s |
-| M5Stack Capsule | **7.4s** |
+| M5Stack Capsule | 7.4s |
+| LilyGo T-Display | **9.5s** |
 
-57% apart. The S3 devkit's profile has claimed *"reproducible in <6s"* since the
+Twice the spread between the extremes. The S3 devkit's profile has claimed *"reproducible in <6s"* since the
 first day, hand-measured on that one board and stated as though it described the
 failure mode; the Capsule exceeds it. That note now carries a caveat rather than
 being deleted, because the bound was true where it was taken.
@@ -300,6 +301,20 @@ Predicting the Capsule's fallback at "about 4.7s" before the read was the same
 error in miniature — one measurement promoted to a constant, committed within
 the hour of writing that pattern down. The timer records the cost per attempt
 precisely so it does not have to be assumed.
+
+**The LilyGo settled the question of what the old field measured**, because it is
+the only board read both before and after the fix:
+
+| Run | `read_seconds` | `ladder_seconds` | discard |
+|---|---|---|---|
+| #1, pre-fix | **756.5** (whole-ladder) | not recorded | not recorded |
+| #2, post-fix | 747.3 (clean) | **756.8** | 9.5s |
+
+The old field and the new `ladder_seconds` agree to **0.3 seconds** on the same
+board doing the same operation. That is direct evidence the old `read_seconds`
+really was whole-ladder time and that `ladder_seconds` reproduces it exactly,
+rather than an argument from reading the code. The clean read is 747.3s — 2.6%
+over model, not the 3.9% the inflated figure implied.
 
 And 750.5s is the first *clean* 16MB timing here — 3.1% over the model, against
 the LilyGo's whole-ladder 3.9% for the same size and rate. The two boards are
@@ -404,12 +419,13 @@ Across three restores the picture is consistent, and the S2's delta is a
 A **second** QT Py — a different board of the same model — then showed **49**,
 which is the useful result:
 
-| Board | Restore | `nvs` delta | Every other region |
-|---|---|---|---|
-| ESP8266 | #1 | 0 | identical |
-| QT Py A | #1 | 50 | identical |
-| QT Py A | #2 | 50 | identical |
-| QT Py B | #1 | **49** | identical |
+| Board | Restore | Image | `nvs` delta | Every other region |
+|---|---|---|---|---|
+| ESP8266 | #1 | 4MB | 0 | identical |
+| QT Py A | #1 | 4MB | 50 | identical |
+| QT Py A | #2 | 4MB | 50 | identical |
+| QT Py B | #1 | 4MB | **49** | identical |
+| **LilyGo** | #1 | **16MB** | **0** | identical |
 
 The same board reproduces exactly; a different board of the same model does
 not. So the count is **device-specific** — MAC-derived values, a differing key
@@ -417,7 +433,27 @@ length — rather than a fixed firmware signature. An earlier version of this
 file said tinyuf2 "initialises the same NVS keys on every boot", implying an
 identical count. That was built on one board and the second narrowed it.
 
-What holds across all four restores is the claim that matters: **`restore` is
+**The LilyGo is the strongest row.** It is the first 16MB verification — double
+the previous largest image — and the first verified after *different* firmware
+ran on the board: `projects/i2c-variant-scan` was flashed onto it, ran, and was
+then restored. **Zero differing bytes across all 16,777,216**, every region, with
+the read-back sha256 equal to the backup's.
+
+A caveat was written down *before* that measurement: the verification came hours
+and several power cycles after the restore, so a non-zero `nvs` delta could not
+have been attributed to the restore rather than to the firmware's own boots. The
+zero result makes it moot — nothing wrote to flash at all, so there was nothing
+for the extra boots to confound. It is recorded in the profile anyway, because it
+was the right caveat for the result it was written against.
+
+The comparison itself was validated before being trusted, against two controls:
+the backup against itself (every region zero) and against an unrelated 16MB image
+(differences everywhere, with the per-region totals **reconciling exactly** with
+the whole-image count). That reconciliation is the load-bearing check — it proves
+the regions leave no gap where a difference could hide and be silently
+under-reported.
+
+What holds across all five restores is the claim that matters: **`restore` is
 exact.** Bootloader, partition table, both app slots, `uf2` and `ffat` are
 byte-perfect every time, and every byte that moves is inside the one partition
 designed to be written. A whole-image SHA-256 reports only "mismatch" and

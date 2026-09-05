@@ -282,6 +282,14 @@ board:
       image size the derived timeout has been exercised against: the derived
       ceiling was 2244s (size/(baud/10)*3+60) against a 756.5s actual, ~3x margin
       as designed.'
+    confirmed_by_second_read: 'The board was read again after the timer fix and
+      the two runs settle this directly. Run 1 recorded read_seconds 756.5 with
+      no attempts list; run 2 recorded read_seconds 747.3 and ladder_seconds
+      756.8, with a 9.5s discarded 460800 attempt. The old field and the new
+      ladder_seconds agree within 0.3s on the same board doing the same
+      operation -- so the old read_seconds was indeed whole-ladder time, and the
+      estimate of "somewhat under 756.5s" below is now measured at 747.3s
+      (2.6% over the 728.1s model, not the 3.9% the inflated figure implied).'
     caveat: 'The recorded read_seconds (756.5) is whole-ladder wall time -- it
       includes the failed 460800 attempt, which this backup had no way to
       separate out. The 230400 read alone is therefore somewhat under 756.5s.
@@ -362,6 +370,31 @@ board:
       BSP first" shortcut that the research_queue recommends is closed for this
       board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-05'
+  tested: restore
+  method: 'Read the full 16MB back after the restore and compared it against the
+    backup region by region -- bootloader, partition table, and each of the six
+    partitions -- rather than relying on a whole-image hash. The comparison was
+    validated first against two controls: the backup against itself (all regions
+    zero) and against an unrelated 16MB image (differences everywhere, with the
+    per-region totals reconciling exactly against the whole-image count, which
+    is what proves the regions leave no gap a difference could hide in).'
+  result: verified
+  note: 'BIT-IDENTICAL. Zero differing bytes across all 16,777,216, every region,
+    and the read-back sha256 equals the backup''s exactly
+    (248da9dd5525c5e276e46a07d9b3d8672ea2f2aeac17263381aba1690badc2b0).
+    First 16MB restore verification in the repo -- double the previous largest --
+    and the first verified after DIFFERENT firmware ran on the board: this one
+    had projects/i2c-variant-scan flashed onto it, ran it, and was then restored.
+    A caveat was recorded BEFORE the measurement: the verification came hours and
+    several power cycles after the restore, so a non-zero nvs delta could not
+    have been attributed to the restore rather than to the firmware''s own boots.
+    The zero result makes that caveat moot -- nothing wrote to flash at all, so
+    there is nothing for the extra boots to have confounded. Kept rather than
+    deleted, because it was the right caveat for the result it was written
+    against.
+    Places this board with the ESP8266 (0 bytes) rather than the QT Pys (50, 50,
+    49 in nvs): its arduino firmware writes nothing to flash on boot.'
 - date: '2026-09-04'
   tested: board.model_variant
   method: 'Flashed projects/i2c-variant-scan and read the console. Reproduces
