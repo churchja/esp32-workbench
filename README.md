@@ -121,37 +121,37 @@ Every claim below was produced by running against the board, not by reading a
 datasheet. Values are lifted from `boards/*.yaml`, so they cannot drift from
 what the tools actually recorded.
 
-| | ESP32-S3 devkit | QT Py ESP32-S2 **A** | QT Py ESP32-S2 **B** | CH340 board |
-|---|---|---|---|---|
-| Chip (probed) | `ESP32-S3 (QFN56) (revision v0.2)` | `ESP32-S2FNR2 (revision v0.0)` | `ESP32-S2FNR2 (revision v0.0)` | `ESP8266EX` |
-| `idf.py set-target` | `esp32s3` | `esp32s2` | `esp32s2` | **none** |
-| Flash | 8MB, quad | 4MB embedded | 4MB embedded | 4MB |
-| PSRAM | 8MB (AP_3v3) | 2MB embedded | 2MB embedded | none |
-| Radios | Wi-Fi, BT 5 (LE) | Wi-Fi only | Wi-Fi only | Wi-Fi only |
-| Cores | Dual + LP, 240MHz | Single, 240MHz | Single, 240MHz | Single, 160MHz |
-| USB peripheral | `USB-Serial/JTAG` | `USB-OTG` | `USB-OTG` | **none** — bridge |
-| USB product string | not captured | `QT Py ESP32-S2` | `QT Py ESP32-S2` | `USB2.0-Serial` |
-| Partitions read | 4 | 6 | 6 | **0** |
-| **Max read baud** | **230400** | **460800** | **460800** | **230400** |
-| Backup | ✅ | ✅ | ✅ | ✅ |
-| Flash · restore | ✅ | ✅ | ✅ | restore ✅ |
-| Console over USB | ✅ | ✅ via `idf-usb-console` | ✅ same | n/a — UART |
-| Profile | `e072a1fb9c5c` | `d4f98d661364` | `d4f98d66124a` | `bcddc2246e97` |
+| Board | Chip | `set-target` | Flash | PSRAM | USB interface | Parts | Max baud | Profile |
+|---|---|---|---|---|---|---|---|---|
+| ESP32-S3 devkit | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `e072a1fb9c5c` |
+| M5 Stamp S3 | `ESP32-S3` | `esp32s3` | 8MB | none | `USB-Serial/JTAG` | 6 | **230400** | `3cdc75edd7b0` |
+| Adafruit QT Py ESP32-S2 **A** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d661364` |
+| Adafruit QT Py ESP32-S2 **B** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d66124a` |
+| CH340 board (ESP8266) | `ESP8266EX` | `**none**` | 4MB | none | `CH340 bridge` | 0 | **230400** | `bcddc2246e97` |
 
-**Columns A and B are the same model, and every row above is identical.** Same
-product string, same VID/PID, same chip, same partition layout, same factory
-images with the same build dates. The only thing distinguishing them is the
-eFuse MAC — `d4:f9:8d:66:13:64` against `d4:f9:8d:66:12:4a`.
+Backup and hash-verify: **all five**. Restore: verified on the S3 devkit, both
+QT Pys, and the ESP8266; the M5 Stamp has not been written to. Console over USB:
+free on both S3s, needs `templates/idf-usb-console` on the S2s, and is UART by
+nature on the CH340 board.
 
-That is the collision the MAC-keyed design exists to prevent, and until a second
-QT Py appeared it had never been tested: every earlier board was a different
-model. They landed on separate profiles, so board A kept its backup manifest and
-its `verified` read ceiling instead of being silently overwritten. Anything keyed
-on what a person would call "the board" would have merged them.
+**The two QT Py rows are identical in every column but the profile id.** Same
+product string, VID/PID, chip, partition layout, factory images and build dates.
+Only the eFuse MAC separates them — which is the collision the MAC-keyed design
+exists to prevent, and it went untested until a second QT Py appeared, because
+every earlier board was a different model. They landed on separate profiles, so
+board A kept its backup manifest and verified read ceiling instead of being
+silently overwritten.
 
-Three mechanisms had to cooperate, each verified in passing: the USB-serial
-fallback keyed B's first (failed) probe correctly and its derived MAC later
-matched eFuse exactly; `adopt_orphans` did **not** fire, because it matches only
+**The two S3 rows share a chip and diverge on silicon**, which is a different
+lesson. The devkit has 8MB PSRAM and four partitions; the M5 Stamp has flash
+embedded in the module, no PSRAM, and six partitions with 3.19MB OTA slots.
+`set-target` is `esp32s3` for both, so a build config valid on one can
+mismanage memory on the other. `chip_features` is read from eFuse rather than
+inferred from a part number, which is what catches it.
+
+Three mechanisms had to cooperate for the QT Py pair, each verified in passing:
+the USB-serial fallback keyed B's first (failed) probe correctly and its derived
+MAC later matched eFuse exactly; `adopt_orphans` did **not** fire, matching only
 on exact normalized-serial equality — two boards differing in the last three
 octets are precisely what a looser rule would have collapsed; and `mac` upgraded
 `inferred` → `probed` in place on B's successful probe.
