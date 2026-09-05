@@ -330,6 +330,21 @@ verification_log:
     app_elf_sha256: 61d714e4... -> b697e0d2..., matching the downloaded image
     exactly. esp_app_desc_t carries exactly one field that identifies a build,
     and it is not any of the human-readable ones.
+    WHAT THE FLASH GAINED, established by comparing symbol strings in the two
+    binaries rather than inferred from a file date: the published image carries
+    2 references to PCF85063 and the resident app carried NONE. This board has a
+    PCF85063 RTC at 0x51 -- one of the three devices whose presence identified it
+    as the Plus -- and the firmware it shipped with could not talk to it. CST816
+    went 4 -> 6 references. The display path is unchanged and the panel looks
+    identical, which is the expected result: initSequence.cpp/.h has had zero
+    commits since 2024-12-18.
+    CORRECTS A RESEARCH CLAIM. The source sweep concluded BOARD_AMOLED_191_SPI
+    first appears in library v1.1.0 (2024-10-14), so firmware stamped March 2024
+    "predates its own board support". The resident binary contains
+    beginAMOLED_191_SPI, so it did not. The stamp is the arduino-lib-builder
+    CORE build time, not the sketch''s, so it cannot date the firmware at all --
+    the resident app was built some unknown time after October 2024 while
+    reporting Mar 5 2024 12:12:53.
     Pre-flash diff established the risk was low: bootloader IDENTICAL (0 of
     32768 bytes differ) and partition table IDENTICAL (0 of 4096), so only app0
     changed. The apps themselves differ in 1,769,209 of 2,501,392 bytes (70.7%),

@@ -537,6 +537,42 @@ does not use it. Positive evidence came from a **20KB read** of `nvs` instead:
 booted and wrote. A targeted partition read is a cheap boot check when a board
 has nothing to say — seconds rather than the twelve minutes a full image costs.
 
+**What the flash actually gained, and how to find that out.** The display looked
+identical afterwards, which is the *expected* result — `initSequence.cpp/.h`, the
+RM67162 single-SPI init, has had zero commits since 2024-12-18, so nothing
+touched this board's display path. But "identical UI" is not "identical
+firmware", and 70.7% of the bytes differ. Comparing the symbol strings compiled
+into each binary answers what changed without any source to diff:
+
+| symbol | published image | resident app |
+|---|---|---|
+| **PCF85063** — the RTC at `0x51` | 2 references | **0** |
+| CST816 — the touch controller at `0x15` | 6 | 4 |
+| `beginAMOLED_191_SPI` | 1 | 1 |
+
+**The original firmware carried no RTC driver at all.** The board has a PCF85063
+— the I2C scan found it at `0x51`, and it is one of the three devices that
+identified this unit as the Plus — and the firmware it shipped with could not
+talk to it. That is a concrete functional gain, established by comparing two
+binaries rather than inferred from a file date.
+
+**And it corrects a claim the research produced.** The source sweep concluded
+that `BOARD_AMOLED_191_SPI` first appears in library v1.1.0 (2024-10-14), so
+firmware carrying a March 2024 stamp "predates its own board support". The
+resident binary contains `beginAMOLED_191_SPI`, so it does not.
+
+The reason is the same stamp failing one level deeper: `Mar 5 2024 12:12:53` is
+the **arduino-lib-builder core's** build time, not the sketch's. It cannot date
+the firmware. The resident app was built at some unknown point *after* October
+2024 while reporting a March 2024 timestamp.
+
+That single field has now failed four distinct ways in this repo: it does not
+identify a board (it collides across LilyGO and M5Stack), it does not identify a
+build (two different binaries share it byte-for-byte), it cannot distinguish two
+builds of the same project on the same board, and it does not date the firmware
+it is attached to. `app_elf_sha256` does the first three; nothing in the
+descriptor does the fourth.
+
 ### The first upgrade the gate was actually built for
 
 Every flash before this one was a test: write something, prove it ran, restore.
