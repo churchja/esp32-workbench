@@ -67,7 +67,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 317 assertions across 8 files; no hardware needed |
+| `tools/test_*.py` | 322 assertions across 8 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
@@ -125,12 +125,14 @@ what the tools actually recorded.
 |---|---|---|---|---|---|---|---|---|
 | ESP32-S3 devkit | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `e072a1fb9c5c` |
 | M5 Stamp S3 | `ESP32-S3` | `esp32s3` | 8MB | none | `USB-Serial/JTAG` | 6 | **230400** | `3cdc75edd7b0` |
+| Cardputer ADV (Stamp **S3A**) | `ESP32-S3` | `esp32s3` | 8MB | none | `USB-Serial/JTAG` | 4 | **230400** | `aca704007f60` |
 | Adafruit QT Py ESP32-S2 **A** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d661364` |
 | Adafruit QT Py ESP32-S2 **B** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d66124a` |
 | CH340 board (ESP8266) | `ESP8266EX` | `**none**` | 4MB | none | `CH340 bridge` | 0 | **230400** | `bcddc2246e97` |
 
-Backup and hash-verify: **all five**. Restore: verified on the S3 devkit, both
-QT Pys, and the ESP8266; the M5 Stamp has not been written to. Console over USB:
+Backup and hash-verify: **all six**. Restore: verified on the S3 devkit, both
+QT Pys, and the ESP8266; the M5 Stamp and the Cardputer ADV have not been
+written to. Console over USB:
 free on both S3s, needs `templates/idf-usb-console` on the S2s, and is UART by
 nature on the CH340 board.
 
@@ -162,13 +164,14 @@ interface**, not the individual board:
 | Interface | Boards | Max read baud |
 |---|---|---|
 | USB-OTG | 2 × ESP32-S2 | **460800** |
-| USB-Serial/JTAG | 2 × ESP32-S3 | 230400 |
+| USB-Serial/JTAG | **3** × ESP32-S3 | 230400 |
 | CH340 UART bridge | ESP8266 | 230400 |
 
-Every board within an interface agrees exactly, and two of the three interfaces
-have independent confirmation from **different vendors** — an ESP32-S3 devkit
-and an M5 Stamp S3, with different MACs and different memory configs, both
-capping at 230400 and both failing reproducibly at 460800.
+Every board within an interface agrees exactly, with **zero disagreement inside
+any group**. USB-Serial/JTAG now has three boards from three vendors — an
+Espressif devkit, an M5 Stamp S3 and a Stamp S3A — different MACs, different
+flash vendors (GD vs XMC), different partition layouts, all capping at 230400
+and all failing reproducibly at 460800.
 
 An earlier version of this file claimed the ceiling was per-board, arguing that
 "the two native boards disagree with each other". That conflated USB-OTG with
@@ -180,8 +183,10 @@ The ladder is still the right design, but for the plainer reason: **no constant
 works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes both S2s four
 times slower than necessary. `esp32flash.py` negotiates rather than assumes.
 
-`n` is still small — five boards, three interfaces, one of which (the bridge)
-has a single example. Treat the table as a measured pattern, not a law.
+`n` is still small — six boards, three interfaces, one of which (the bridge)
+has a single example. Treat the table as a measured pattern, not a law. Note
+that boards five and six both *tested* the per-interface claim rather than
+producing it, and it held each time.
 
 Timing corroborates the mechanism. Against the 10-bits-per-byte serial framing
 model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted and the ESP8266
