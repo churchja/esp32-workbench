@@ -129,13 +129,14 @@ what the tools actually recorded.
 | LilyGo T-Display S3 AMOLED | `ESP32-S3` | `esp32s3` | **16MB** | 8MB (AP_3v3) | `USB-Serial/JTAG` | 6 | **230400** | `e4b0638aec2c` |
 | Adafruit QT Py ESP32-S2 **A** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d661364` |
 | Adafruit QT Py ESP32-S2 **B** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d66124a` |
+| Flipper Zero Wi-Fi Module v1 | `ESP32-S2` | `esp32s2` | 4MB | none | `USB-OTG` | 5 | **460800** | `3030f9837418` |
 | CH340 board (ESP8266) | `ESP8266EX` | `**none**` | 4MB | none | `CH340 bridge` | 0 | **230400** | `bcddc2246e97` |
 
-Backup and hash-verify: **all seven**. Restore: verified on the S3 devkit, both
-QT Pys, and the ESP8266; the M5 Stamp, the Cardputer ADV and the LilyGo have not
-been written to. Console over USB: free on every S3, needs
-`templates/idf-usb-console` on the S2s, and is UART by nature on the CH340
-board.
+Backup and hash-verify: **all eight**. Restore: verified on the S3 devkit, both
+QT Pys, and the ESP8266, and performed on the LilyGo after its variant scan; the
+M5 Stamp, the Cardputer ADV and the Flipper module have not been written to.
+Console over USB: free on every S3, needs `templates/idf-usb-console` on all
+three S2s, and is UART by nature on the CH340 board.
 
 **The two QT Py rows are identical in every column but the profile id.** Same
 product string, VID/PID, chip, partition layout, factory images and build dates.
@@ -181,7 +182,7 @@ interface**, not the individual board:
 
 | Interface | Boards | Max read baud |
 |---|---|---|
-| USB-OTG | 2 × ESP32-S2 | **460800** |
+| USB-OTG | **3** × ESP32-S2 | **460800** |
 | USB-Serial/JTAG | **4** × ESP32-S3 | 230400 |
 | CH340 UART bridge | ESP8266 | 230400 |
 
@@ -196,19 +197,30 @@ An earlier version of this file claimed the ceiling was per-board, arguing that
 "the two native boards disagree with each other". That conflated USB-OTG with
 USB-Serial/JTAG — different peripherals — and was written from three data
 points. The fourth broke it; split by interface, all agreed. Boards **five,
-six and seven** each tested the corrected claim rather than producing it, and it
-held every time.
+six, seven and eight** each tested the corrected claim rather than producing it,
+and it held every time.
 
 The ladder is still the right design, but for the plainer reason: **no constant
-works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes both S2s four
-times slower than necessary. `esp32flash.py` negotiates rather than assumes.
+works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes all three S2s
+four times slower than necessary. `esp32flash.py` negotiates rather than assumes.
 
-`n` is still small — seven boards, three interfaces, one of which (the bridge)
+`n` is still small — eight boards, three interfaces, one of which (the bridge)
 still has a single example. Treat the table as a measured pattern, not a law.
-The pattern's strength is that boards five through seven *tested* it rather than
-producing it; its weakness is that the four agreeing USB-Serial/JTAG boards
-share one SoC family, so the claim is really "the S3's USB-Serial/JTAG
-peripheral caps at 230400". A C3/C6/C5 would be the first real test.
+The pattern's strength is that boards five through eight *tested* it rather than
+producing it; its weakness is that every board in a group shares one SoC family,
+so what is measured is a *peripheral*, not an interface in the abstract.
+
+The Flipper module improved that in one specific way. The USB-OTG group was two
+**same-model twins** — two Adafruit QT Pys, identical in every column but the
+profile id — which is weak evidence for anything beyond that model. The Flipper
+module is a different vendor, a different flash manufacturer (`0x5e`, new to
+this repo), a different partition layout, no PSRAM, and an Arduino build a
+year older, and it landed on the same rung at nearly the same speed. That is a
+genuinely independent specimen where the group previously had one.
+
+The USB-Serial/JTAG group has no such luck: all four are ESP32-S3, so the claim
+there is still "the S3's USB-Serial/JTAG peripheral caps at 230400". A C3, C6 or
+C5 would be its first real test.
 
 Timing corroborates the mechanism. Against the 10-bits-per-byte serial framing
 model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted, the ESP8266
@@ -230,10 +242,16 @@ rung that actually produced the image:
 | LilyGo 756.5s vs 728 | fell back from 460800 | inflated by an unrecorded amount |
 
 So the ESP8266's "11% over model" and the LilyGo's "3.9%" are **ceilings on the
-error, not the error**. Five of the seven boards fell back at some point — the
-four USB-Serial/JTAG boards and the CH340 bridge; only the two USB-OTG S2s
-never did — so any laddered duration in a pre-change manifest carries the same
+error, not the error**. Five of the eight boards fell back at some point — the
+four USB-Serial/JTAG boards and the CH340 bridge; the three USB-OTG S2s never
+did — so any laddered duration in a pre-change manifest carries the same
 inflation.
+
+The Flipper module is the first board backed up *after* the fix, and its
+manifest shows the intended shape: `read_seconds` 33.2, `ladder_seconds` 33.2,
+and a single `attempts` entry marked `ok`. Equal, because it took the first
+rung — the case `test_flash.py` pins against a scripted clock, now seen on
+hardware. The two figures will only diverge on the next board that falls back.
 
 `read_with_fallback` now times each rung separately and returns them:
 
@@ -528,7 +546,7 @@ failed inference, since the inference was reasonable and still wrong.
 
 - **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
   first is an 8-byte EUI64; an early parser truncated it into a wrong 6-byte
-  identity, and identity is the backup key. None of the seven boards here is a
+  identity, and identity is the backup key. None of the eight boards here is a
   C6, C5 or H2, so none prints one. Closing this needs one of those parts — it
   is the only path in `esp32ident.py` that has never met the hardware it exists
   for at all.

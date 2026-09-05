@@ -1,0 +1,258 @@
+schema_version: 1
+profile_id: 3030f9837418
+identified_at: '2026-09-05T02:34:39.324372+00:00'
+port_seen_on: /dev/cu.usbmodem01
+identity:
+  usb_vid:
+    value: '0x303a'
+    provenance: usb
+  usb_pid:
+    value: '0x0002'
+    provenance: usb
+  usb_serial_number:
+    value: '0'
+    provenance: usb
+  usb_product:
+    value: ESP32-S2
+    provenance: usb
+    note: USB product string as announced in THIS mode. Board-level names appear in app mode; ROM download
+      mode usually reports just the chip.
+  usb_interface:
+    value: Espressif ESP32-S2 native USB CDC
+    provenance: usb
+  usb_interface_kind:
+    value: native
+    provenance: usb
+    note: native = the SoC implements USB directly (supports USB-JTAG debug, USB CDC console, and can
+      re-enumerate after reset). bridge = a separate UART chip; the SoC has no USB peripheral.
+  usb_vendor:
+    value: Espressif
+    provenance: usb
+  chip:
+    value: ESP32-S2 (revision v1.0)
+    provenance: probed
+  chip_family:
+    value: ESP32-S2
+    provenance: probed
+  chip_revision:
+    value: '1.0'
+    provenance: probed
+  chip_features:
+    value:
+    - Wi-Fi
+    - Single Core
+    - 240MHz
+    - No Embedded Flash
+    - No Embedded PSRAM
+    - ADC and temperature sensor calibration in BLK2 of eFuse V2
+    provenance: probed
+    note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
+      of the vendor listing.
+  crystal:
+    value: 40MHz
+    provenance: probed
+  usb_mode:
+    value: USB-OTG
+    provenance: probed
+    note: Reported by esptool 5.x from the chip itself; corroborates the USB VID/PID reading of native
+      vs bridge.
+  mac:
+    value: 30:30:f9:83:74:18
+    provenance: probed
+    note: Base MAC from eFuse (read from the 'MAC' line) -- globally unique per board. Used as the profile
+      and backup key so two boards of the same model never collide.
+  flash_manufacturer_id:
+    value: '0x5e'
+    provenance: probed
+  flash_device_id:
+    value: '0x4016'
+    provenance: probed
+  flash_size:
+    value: 4MB
+    provenance: probed
+    note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
+      wrong about this.
+  flash_mode:
+    value: quad (4 data lines)
+    provenance: probed
+    note: quad vs octal changes the flash driver and the build config (CONFIG_ESPTOOLPY_OCT_FLASH / flash_mode).
+      Getting it wrong produces a board that flashes but will not boot.
+  partitions:
+    value:
+    - label: nvs
+      type: data
+      subtype: nvs
+      offset: '0x9000'
+      offset_int: 36864
+      size: '0x5000'
+      size_int: 20480
+      size_human: 20KB
+      encrypted: false
+    - label: otadata
+      type: data
+      subtype: ota
+      offset: '0xe000'
+      offset_int: 57344
+      size: '0x2000'
+      size_int: 8192
+      size_human: 8KB
+      encrypted: false
+    - label: app0
+      type: app
+      subtype: ota_0
+      offset: '0x10000'
+      offset_int: 65536
+      size: '0x1e0000'
+      size_int: 1966080
+      size_human: 1.875MB
+      encrypted: false
+    - label: app1
+      type: app
+      subtype: ota_1
+      offset: '0x1f0000'
+      offset_int: 2031616
+      size: '0x1e0000'
+      size_int: 1966080
+      size_human: 1.875MB
+      encrypted: false
+    - label: spiffs
+      type: data
+      subtype: spiffs
+      offset: '0x3d0000'
+      offset_int: 3997696
+      size: '0x30000'
+      size_int: 196608
+      size_human: 192KB
+      encrypted: false
+    provenance: probed
+    note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
+      it over any assumed default.
+  partition_table_md5:
+    value: 3e74a399f8859c234514de43eeb7924c
+    provenance: probed
+  applications:
+    value:
+    - secure_version: 0
+      app_version: 'esp-idf: v4.4.5 ac5d805d0e'
+      project_name: arduino-lib-builder
+      build_time: '16:36:18'
+      build_date: Jun 12 2023
+      idf_version: v4.4.5
+      app_elf_sha256: b3b52c1a86a36646a3b0e52170275d1fa97bd07c55bd8b655c6e36302ef02243
+      partition: app0
+    provenance: probed
+    note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
+      and which SDK built it.
+  idf_target:
+    value: esp32s2
+    provenance: inferred
+    note: 'Derived from probed chip_family exactly. Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
+      not exported). Use: idf.py set-target esp32s2'
+pinmap: {}
+peripherals: {}
+research_queue:
+- field: display
+  status: unknown
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Vendor schematic for the ESP32-S2 board carrying this display. Then check for an existing BSP component
+    -- search the ESP Component Registry (components.espressif.com) for the board name, and espressif/esp-bsp,
+    which already encodes panel type, offsets and pins for many vendor boards. Confirm the controller
+    part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+- field: pinmap
+  status: unknown
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+- field: power
+  status: unknown
+  why: Battery connector, charge IC, and ADC divider ratio are board-level.
+  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
+    corrupts every battery reading.
+_diagnostics:
+  esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
+  esptool_version: 5.2.0
+  esptool_dialect: hyphenated (5.x)
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788575671
+  flash_id_rc: 0
+  flash_id_output: 'esptool v5.2.0
+
+    Serial port /dev/cu.usbmodem01:
+
+    Connecting...
+
+    Detecting chip type... ESP32-S2
+
+    Connected to ESP32-S2 on /dev/cu.usbmodem01:
+
+    Chip type:          ESP32-S2 (revision v1.0)
+
+    Features:           Wi-Fi, Single Core, 240MHz, No Embedded Flash, No Embedded PSRAM, ADC and temperature
+    sensor calibration in BLK2 of eFuse V2
+
+    Crystal frequency:  40MHz
+
+    USB mode:           USB-OTG
+
+    MAC:                30:30:f9:83:74:18
+
+
+    Uploading stub flasher...
+
+    Running stub flasher...
+
+    Stub flasher running.
+
+
+    Flash Memory Information:
+
+    =========================
+
+    Manufacturer: 5e
+
+    Device: 4016
+
+    Detected flash size: 4MB
+
+    Flash type set in eFuse: quad (4 data lines)
+
+    Flash voltage set by a strapping pin: 3.3V
+
+
+    Staying in bootloader.'
+  partition_rc: 0
+board:
+  vendor:
+    value: Flipper Devices
+    provenance: unverified
+    note: 'From the name the operator gave the board ("Flipper Zero Wi-Fi Module
+      v1"), not from anything the silicon said. No vendor string reaches USB in
+      ROM download mode -- usb_product is the generic "ESP32-S2". Left
+      unverified deliberately; see the LilyGo profile for what happens when a
+      board is identified by anything other than measurement.'
+  read_baud_max:
+    value: 460800
+    provenance: verified
+    note: 'Physical test via the backup ladder: 460800 took the FIRST rung, no
+      fallback. Third USB-OTG board and the third to reach 460800, after the two
+      Adafruit QT Py S2s. Importantly the first USB-OTG specimen that is not an
+      Adafruit QT Py -- the earlier two were same-model twins, so this is the
+      first independent vendor in that interface group.'
+    timing: 'Read 4MB in 33.2s. The 10-bits-per-byte serial framing model
+      predicts 91.0s, so this ran 2.7x FASTER than nominal -- only possible
+      because USB-OTG CDC does not throttle to the configured baud. The two QT
+      Pys measured 33.0s and 32.9s. Three USB-OTG boards, three near-identical
+      times, and all three far off the model in the same direction. Contrast the
+      USB-Serial/JTAG and bridge boards, which track the model within ~11%.'
+verification_log:
+- date: '2026-09-04'
+  tested: board.read_baud_max
+  method: Full 4MB esptool read-flash via the backup baud ladder.
+  result: verified
+  note: 'Eighth board, third USB-OTG. First backup taken after the per-rung timer
+    fix, so its manifest is the first to carry read_seconds, ladder_seconds and
+    attempts. It took the first rung, so read_seconds == ladder_seconds with a
+    single ok attempt -- the case test_flash.py pins against a scripted clock,
+    now confirmed on hardware.'
