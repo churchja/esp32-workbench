@@ -1,0 +1,24 @@
+esptool v5.2.0
+Serial port /dev/cu.usbmodem1101:
+Connecting...
+Detecting chip type... ESP32-S3
+Connected to ESP32-S3 on /dev/cu.usbmodem1101:
+Chip type:          ESP32-S3 (QFN56) (revision v0.2)
+Features:           Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz, Embedded Flash 8MB (GD)
+Crystal frequency:  40MHz
+USB mode:           USB-Serial/JTAG
+MAC:                3c:dc:75:ed:d7:b0
+
+Uploading stub flasher...
+Running stub flasher...
+Stub flasher running.
+
+Flash Memory Information:
+=========================
+Manufacturer: c8
+Device: 4017
+Detected flash size: 8MB
+Flash type set in eFuse: quad (4 data lines)
+Flash voltage set by eFuse: 3.3V
+
+Staying in bootloader.
