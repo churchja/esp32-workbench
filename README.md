@@ -370,6 +370,73 @@ drives no peripheral at all, which is what makes it safe on a board whose pin
 map is unverified; a USB device stack is a peripheral. Keeping them separate
 preserves that guarantee for every other board.
 
+### What identification cannot reach
+
+Six boards were identified down to flash vendor and partition layout. The
+seventh stops sooner, and the reason is worth recording because it is a limit
+of the method, not a gap in the effort.
+
+**"LilyGo T-Display S3 AMOLED" is a family, not a board.** At least six ship
+under names that close to each other:
+
+| Variant | Panel | Controller |
+|---|---|---|
+| T-Display-AMOLED-Lite 1.47" | 194×368 | SH8501 |
+| T-Display-S3 AMOLED 1.91" | 240×536 | RM67162 (QSPI) |
+| T-Display-S3 AMOLED **Plus** 1.91" | 240×536 | RM67162 (single SPI) |
+| T4-S3 2.41" | 450×600 | RM690B0 |
+| T-Display-S3-AMOLED-1.64 | 280×456 | — |
+| T-Display-S3-AMOLED 1.43/1.75" | 466×466 round | CO5300 or SH8601 |
+
+Every one is ESP32-S3R8 with 16MB flash and 8MB OPI PSRAM. **The eFuse reading
+that separated the other six boards separates nothing here.**
+
+Nor does anything else the probe collects, and this generalises:
+
+| Field | Why it does not identify a board |
+|---|---|
+| `partition_table_md5` | byte-for-byte espressif's `arduino-esp32` `default_16MB.csv` |
+| USB `303a:1001` | the generic Espressif native USB-Serial/JTAG ID |
+| app `arduino-lib-builder / v4.4.7` | the standard arduino-esp32 core build stamp |
+
+**Those three identify a *build*, not a board.** On the other six they happened
+to correlate with one, which is a different thing and easy to mistake for the
+same thing.
+
+Five source lanes were searched — LilyGO's repos, the ESP Component Registry,
+`esp-bsp`, panel drivers, and the schematics. Results, recorded in the profile
+with source URLs:
+
+- **No BSP exists** for any variant, so the research queue's own "check for a
+  BSP first" shortcut is closed here. A panel driver must be written or a
+  third-party one adopted.
+- The circumstantial case for the 1.91" non-touch board is real but weak: its
+  board JSON matches flash size, flash mode, memory type, USB hwids and
+  partition file. The same file would match several siblings, so it is recorded
+  as `community` provenance and labelled circumstantial, not as an answer.
+
+**`pinmap` is deliberately still `{}`.** Two LilyGO-owned sources assign
+different *functions* to the same GPIOs on boards both label 1.91":
+
+| GPIO | Non-touch build | Touch / Plus build |
+|---|---|---|
+| **38** | `PIN_LED` — green LED, confirmed in the schematic netlist | **`OL_EN` — AMOLED panel power enable** |
+| **21** | button with a 10K pull-up | touch controller INT |
+
+Writing either set down would be a coin flip on a live rail. The QSPI pins two
+repos *do* agree on are kept as a note-level lead, not a pinmap, because a third
+vendor file disagrees.
+
+One source turned out to disagree with the hardware outright: the non-touch
+schematic shows a **W25Q32 (4MB)** where this unit probed **W25Q128 (16MB)**.
+A published vendor schematic is one source, not ground truth — recorded as a
+`schematic_trust` queue entry so the next reader does not take it on faith.
+
+Four of the five queue entries are `blocked` on a single physical observation:
+**look at the panel.** Its size and shape split the family, and no amount of
+reading substitutes for that. Recorded as a negative result so the next session
+does not repeat the search.
+
 ### Not validated
 
 - **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
