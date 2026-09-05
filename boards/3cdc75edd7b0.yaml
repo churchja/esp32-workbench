@@ -245,6 +245,13 @@ board:
       MAC and memory config -- second independent confirmation that the ceiling follows the USB interface,
       not the board. 381s measured vs 364s predicted by the 10-bits-per-byte model (4.7% over), consistent
       with the bridge board; only USB-OTG outruns the model.'
+    caveat: 'The duration in this note and in the backup manifest is
+      whole-ladder wall time -- it includes the discarded 460800 attempt,
+      which this backup had no way to separate out. The percentage over the
+      10-bits-per-byte model is therefore a CEILING on the real error, not
+      the error itself. read_with_fallback now times each rung separately;
+      entries without an "attempts" key predate that and were deliberately
+      not retro-fitted, since the split cannot be recovered after the fact.'
 verification_log:
 - date: '2026-09-04'
   tested: board.read_baud_max

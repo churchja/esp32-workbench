@@ -226,6 +226,15 @@ board:
       460800 FAIL, 921600 FAIL (''Serial data stream stopped: possible serial noise or corruption''),
       reproducible in <6s at both failing rates. write-flash succeeded at 460800, so the ceiling applies
       to READS only.'
+    caveat: 'The 256KB figures in this note are CLEAN -- each rate was read
+      individually with the baud pinned, so no discarded attempt is folded in,
+      and the same is true of the 731s full read at a pinned 115200. The
+      manifest''s second entry (380.2s at 230400) went through the ladder and
+      may include a discarded 460800 attempt; whether the baud was pinned for
+      that run was not recorded, so treat it as an upper bound. Contrast the
+      other four laddered boards, whose durations are definitely whole-ladder.
+      read_with_fallback now times each rung separately; entries without an
+      "attempts" key predate that and were deliberately not retro-fitted.'
 verification_log:
 - date: '2026-09-04'
   tested: board.read_baud_max

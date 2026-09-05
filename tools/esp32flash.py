@@ -64,13 +64,31 @@ def looks_like_baud_failure(output):
 
 
 def read_with_fallback(esp, port, address, size, dest, timeout_for, baud=None,
-                       after=None):
+                       after=None, clock=time.monotonic):
     """
     Read flash, stepping down the baud ladder on corruption-type failures.
 
-    Returns (rc, output, baud_used). A non-corruption failure is returned
-    immediately rather than retried -- a chip that will not answer at all is
-    not going to answer slower.
+    Returns (rc, output, baud_used, attempts). A non-corruption failure is
+    returned immediately rather than retried -- a chip that will not answer at
+    all is not going to answer slower.
+
+    `attempts` is one dict per rung tried, in order:
+
+        {"baud": 460800, "seconds": 5.3, "ok": False}
+        {"baud": 230400, "seconds": 751.2, "ok": True}
+
+    Each rung is timed SEPARATELY, which is the point. The caller used to wrap
+    the whole ladder in one timer and record that as `read_seconds`, so a
+    discarded 460800 attempt was silently added to the time attributed to the
+    230400 read. That value was a valid upper bound but was presented as a
+    measurement, and it inflated exactly the boards that fall back -- which in
+    this repo is every board except the two USB-OTG S2s, the CH340 bridge
+    included. Timing per rung also turns "the ladder fails fast" from a claim
+    in a profile note into recorded data.
+
+    `clock` is injectable so the timing is testable without sleeping. It
+    defaults to time.monotonic, NOT time.time: these are durations, and
+    time.time can step backwards when NTP corrects the system clock.
 
     `after` is passed to every attempt. It matters: esptool defaults to
     --after hard-reset, so a backup ends by rebooting the board. On a
@@ -80,18 +98,25 @@ def read_with_fallback(esp, port, address, size, dest, timeout_for, baud=None,
     with "could not open /dev/cu.usbmodem01".
     """
     ladder = [baud] if baud else list(BAUD_LADDER)
-    last = (1, "", None)
+    attempts = []
+    last = (1, "", None, attempts)
     for b in ladder:
+        t0 = clock()
         rc, so, se = esp.run(port, "read-flash", str(address), str(size), dest,
                              timeout=timeout_for(b), baud=b, after=after)
+        # Rounded at record time, not at report time, so that
+        # ladder_seconds == sum(a["seconds"] for a in attempts) exactly.
+        attempts.append({"baud": b, "seconds": round(clock() - t0, 1),
+                         "ok": rc == 0})
         blob = so + se
         if rc == 0:
-            return rc, blob, b
-        last = (rc, blob, b)
+            return rc, blob, b, attempts
+        last = (rc, blob, b, attempts)
         if not looks_like_baud_failure(blob):
             return last                      # a real failure, not a speed one
         if b != ladder[-1]:
-            warn(f"{b} baud failed (serial corruption); retrying at "
+            warn(f"{b} baud failed (serial corruption) after "
+                 f"{attempts[-1]['seconds']:.0f}s; retrying at "
                  f"{ladder[ladder.index(b) + 1]}")
         if os.path.exists(dest):
             os.remove(dest)
@@ -272,7 +297,7 @@ def report_board_state(after, port):
              f"the bridge stays enumerated regardless of what the SoC does.")
 
 
-def cmd_backup(esp, args):
+def cmd_backup(esp, args, clock=time.monotonic):
     port = args.port
     mac, size, chip = board_identity(esp, port)
     if not size:
@@ -308,10 +333,9 @@ def cmd_backup(esp, args):
         info(f"Reading {size/1048576:.0f}MB from {chip} @ {mac}; trying "
              f"{'/'.join(str(b) for b in BAUD_LADDER)} baud in turn")
     info("Do not unplug.")
-    t0 = time.time()
-    rc, blob, baud_used = read_with_fallback(esp, port, 0, size, dest,
-                                            timeout_for, baud=args.baud,
-                                            after=args.after)
+    rc, blob, baud_used, attempts = read_with_fallback(
+        esp, port, 0, size, dest, timeout_for, baud=args.baud,
+        after=args.after, clock=clock)
     so, se = blob, ""
     if rc != 0:
         if os.path.exists(dest):
@@ -324,7 +348,15 @@ def cmd_backup(esp, args):
                     f"  python3 tools/esp32flash.py backup --baud 921600\n"
                     f"or allow more time with --timeout.")
         die("read-flash failed:\n" + (so + se)[-1500:] + hint)
-    elapsed = time.time() - t0
+
+    # read_seconds is the SUCCESSFUL rung alone. ladder_seconds is the wall
+    # time the operator actually waited, discarded attempts included. They
+    # differ whenever the ladder steps down, and conflating them is what this
+    # split exists to stop. Entries written before this change have no
+    # "attempts" key -- for those, read_seconds is whole-ladder time.
+    transfer = next(a["seconds"] for a in attempts if a["ok"])
+    ladder_seconds = round(sum(a["seconds"] for a in attempts), 1)
+    discarded = [a for a in attempts if not a["ok"]]
 
     digest = sha256_file(dest)
     actual = os.path.getsize(dest)
@@ -337,13 +369,19 @@ def cmd_backup(esp, args):
     man.setdefault("backups", []).append({
         "file": name, "sha256": digest, "bytes": actual,
         "created": datetime.now(timezone.utc).isoformat(),
-        "chip": chip, "read_seconds": round(elapsed, 1),
+        "chip": chip, "read_seconds": transfer,
+        "ladder_seconds": ladder_seconds,
+        "attempts": attempts,
         "baud": baud_used,
         "esptool_version": esp.version,
     })
     save_manifest(mac, man)
 
-    info(f"Backup complete in {elapsed:.0f}s at {baud_used} baud")
+    info(f"Backup complete: {transfer:.0f}s at {baud_used} baud")
+    if discarded:
+        info("  ladder: " + ", ".join(
+            f"{a['baud']} failed after {a['seconds']:.0f}s" for a in discarded)
+            + f" -> {ladder_seconds:.0f}s wall total")
     report_board_state(args.after, port)
     print(dest)
     print(f"sha256 {digest}")

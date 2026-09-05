@@ -249,12 +249,17 @@ board:
       image size the derived timeout has been exercised against: the derived
       ceiling was 2244s (size/(baud/10)*3+60) against a 756.5s actual, ~3x margin
       as designed.'
-    caveat: 'The recorded read_seconds (756.5) is the whole-ladder wall time -- it
-      includes the failed 460800 attempt, which is not separated out. The 230400
-      read alone is therefore somewhat under 756.5s. Against the 10-bits-per-byte
-      model (16777216*10/230400 = 728.1s predicted) the ladder-inclusive figure is
-      3.9% over, so the read alone is closer to the model than any prior
-      USB-Serial/JTAG measurement -- but this is a bound, not a measurement.'
+    caveat: 'The recorded read_seconds (756.5) is whole-ladder wall time -- it
+      includes the failed 460800 attempt, which this backup had no way to
+      separate out. The 230400 read alone is therefore somewhat under 756.5s.
+      Against the 10-bits-per-byte model (16777216*10/230400 = 728.1s predicted)
+      the ladder-inclusive figure is 3.9% over, so the read alone is closer to
+      the model than any prior USB-Serial/JTAG measurement -- but this is a
+      bound, not a measurement. This board was the last to be recorded that way:
+      read_with_fallback now times each rung separately and manifests carry
+      read_seconds (successful rung), ladder_seconds (wall total) and a per-rung
+      attempts list. This entry predates that and was deliberately not
+      retro-fitted -- the split cannot be recovered after the fact.'
 verification_log:
 - date: '2026-09-05'
   tested: board.read_baud_max

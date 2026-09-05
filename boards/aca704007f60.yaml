@@ -226,6 +226,13 @@ board:
       in 385s. THIRD independent USB-Serial/JTAG board at this ceiling -- an ESP32-S3 devkit, an M5 Stamp
       S3 and this Stamp S3A, three vendors, all 230400, all failing at 460800. 385s vs 364s predicted
       by the framing model (5.8% over), consistent with every non-OTG board measured.'
+    caveat: 'The duration in this note and in the backup manifest is
+      whole-ladder wall time -- it includes the discarded 460800 attempt,
+      which this backup had no way to separate out. The percentage over the
+      10-bits-per-byte model is therefore a CEILING on the real error, not
+      the error itself. read_with_fallback now times each rung separately;
+      entries without an "attempts" key predate that and were deliberately
+      not retro-fitted, since the split cannot be recovered after the fact.'
 verification_log:
 - date: '2026-09-04'
   tested: board.read_baud_max

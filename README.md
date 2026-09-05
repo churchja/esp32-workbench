@@ -67,7 +67,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 327 assertions across 8 files; no hardware needed |
+| `tools/test_*.py` | 350 assertions across 8 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
@@ -211,14 +211,52 @@ share one SoC family, so the claim is really "the S3's USB-Serial/JTAG
 peripheral caps at 230400". A C3/C6/C5 would be the first real test.
 
 Timing corroborates the mechanism. Against the 10-bits-per-byte serial framing
-model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted and the ESP8266
-(real UART bridge) 202s vs 182 — both close. The LilyGo's 16MB read held the
-same ratio at double the size (756.5s vs 728 predicted, and that figure still
-includes the discarded 460800 attempt), so the model does not drift with image
-size. Only the S2's **USB-OTG** ran far
-faster than predicted (33s vs 91), because OTG CDC does not throttle to the
-nominal baud. The model stays a safe *upper* bound, which is all the derived
-timeout needs.
+model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted, the ESP8266
+(real UART bridge) 202s vs 182, and the LilyGo 756.5s vs 728 — so the model
+does not drift with image size. Only the S2's **USB-OTG** ran far faster than
+predicted (33s vs 91), because OTG CDC does not throttle to the nominal baud.
+The model stays a safe *upper* bound, which is all the derived timeout needs.
+
+**Two of those four figures are upper bounds, not measurements** — and they are
+the last ones recorded that way. Backups timed the *whole* baud ladder and
+stored that as `read_seconds`, so a discarded 460800 attempt was charged to the
+rung that actually produced the image:
+
+| figure | rung | clean? |
+|---|---|---|
+| S3 731s vs 728 | pinned 115200, no ladder | **clean** |
+| S2 33s vs 91 | 460800, first rung took it | **clean** |
+| ESP8266 202s vs 182 | fell back from 460800 | inflated by an unrecorded amount |
+| LilyGo 756.5s vs 728 | fell back from 460800 | inflated by an unrecorded amount |
+
+So the ESP8266's "11% over model" and the LilyGo's "3.9%" are **ceilings on the
+error, not the error**. Five of the seven boards fell back at some point — the
+four USB-Serial/JTAG boards and the CH340 bridge; only the two USB-OTG S2s
+never did — so any laddered duration in a pre-change manifest carries the same
+inflation.
+
+`read_with_fallback` now times each rung separately and returns them:
+
+| manifest key | meaning |
+|---|---|
+| `read_seconds` | the successful rung alone — what the transfer actually cost |
+| `ladder_seconds` | wall time the operator waited, discarded attempts included |
+| `attempts` | `{baud, seconds, ok}` per rung, in order |
+
+`ladder_seconds` is exactly `sum(a.seconds for a in attempts)`. `test_flash.py`
+asserts that on `read_with_fallback`'s return value **and** on the manifest
+`cmd_backup` actually writes. The second is the one that matters: reinstating
+the old whole-ladder value passed every assertion the first had, because
+nothing exercised the manifest write — which is where the bug lived.
+
+**The eight entries written before this change carry no `attempts` key**; for
+those, read `read_seconds` as whole-ladder time. They were left as recorded
+rather than retro-fitted, since the split cannot be recovered after the fact.
+(Eight entries across seven files — the S3 devkit has two, and its first
+predates the ladder entirely.)
+
+The per-rung records also turn "the ladder fails fast" — until now a claim in a
+profile note — into data the next backup collects on its own.
 
 **The S3 proved the happy path.** Identify, back up (8MB), flash different
 firmware, run it, restore — and the restored image is **byte-identical** by
