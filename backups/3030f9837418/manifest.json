@@ -54,6 +54,24 @@
       ],
       "baud": 460800,
       "esptool_version": "5.2.0"
+    },
+    {
+      "file": "full-20260905T093119Z-4194304.bin",
+      "sha256": "542091b9ac8b779726efcc8ee7ce6812b693f79d2fde3ec4da6b056671781d32",
+      "bytes": 4194304,
+      "created": "2026-09-05T09:31:51.605959+00:00",
+      "chip": "ESP32-S2 (revision v1.0)",
+      "read_seconds": 32.1,
+      "ladder_seconds": 32.1,
+      "attempts": [
+        {
+          "baud": 460800,
+          "seconds": 32.1,
+          "ok": true
+        }
+      ],
+      "baud": 460800,
+      "esptool_version": "5.2.0"
     }
   ],
   "chip": "ESP32-S2 (revision v1.0)"

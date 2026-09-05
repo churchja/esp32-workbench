@@ -233,8 +233,22 @@ board:
       unverified deliberately; see the LilyGo profile for what happens when a
       board is identified by anything other than measurement.'
   after_no_reset_hazard:
-    value: RETRACTED -- the one clean test parked successfully
-    provenance: unverified
+    value: no hazard -- the CDC endpoint cycles for <1s after every esptool call
+    provenance: verified
+    measured: 'Tested directly once all three write paths forwarded --after.
+      backup --after no-reset parked the board and the port survived; restore
+      --after no-reset did the same; a read-flash chained onto that port without
+      any BOOT+RESET worked. A flash-id issued immediately after the read failed
+      with "port is busy or doesn''t exist", and the same command retried
+      succeeded. Polling every 0.5s after an operation: absent at 0.5s, present
+      from 1.0s and stable through 10.0s. So the port re-enumerates briefly
+      after every operation and comes back -- a race, not a loss.
+      ALREADY KNOWN. The README has recorded "back-to-back esptool calls
+      contended for the USB CDC endpoint" since the QT Py work, same chip
+      family, same mechanism. The Flipper module''s port losses were explained
+      by inventing a new mechanism instead of applying that one.
+      Practical rule: allow ~1s between back-to-back esptool commands on a
+      USB-OTG part, or retry once on "port is busy".'
     retraction: 'This fact previously read "guaranteed port loss on this chip,
       not a risk" with provenance verified, on the strength of three observed
       port losses. It was wrong. The --after bug meant restore, flash and erase
@@ -284,6 +298,19 @@ board:
       times, and all three far off the model in the same direction. Contrast the
       USB-Serial/JTAG and bridge boards, which track the model within ~11%.'
 verification_log:
+- date: '2026-09-05'
+  tested: board.after_no_reset_hazard
+  method: 'THIRD AND FINAL VERSION, measured rather than inferred. With all three
+    write paths forwarding --after: backup then restore, both --after no-reset,
+    port survived each; a read-flash chained onto the parked port worked with no
+    BOOT+RESET; a flash-id issued immediately after failed and the retry
+    succeeded; polling at 0.5s intervals showed the port absent at 0.5s and
+    present from 1.0s through 10.0s. The endpoint cycles briefly after every
+    operation.'
+  result: verified
+  note: 'Supersedes two wrong versions of this fact recorded earlier the same
+    day -- first that parking was fatal on this chip, then a retraction saying it
+    was fine. Both were published without measuring the thing they described.'
 - date: '2026-09-05'
   tested: board.after_no_reset_hazard
   result_superseded: RETRACTED -- see board.after_no_reset_hazard.retraction
