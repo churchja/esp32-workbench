@@ -454,6 +454,23 @@ board:
       exactly this ("the same board file would match several siblings"), which is why it was recorded
       as circumstantial and never written into a pinmap. Four matching fields is not identification when
       the fields are shared across a product line.
+  firmware_running:
+    value: LilyGO published factory image (firmware/firmware.bin, 2026-01-07)
+    provenance: verified
+    note: 'Identified by app_elf_sha256 b697e0d2ce802e5245a9dd5d2bb3bd387d1a5038
+      9f5156a8befd37f23928ca5c, which is the ONLY descriptor field that can tell
+      this image from the one it replaced -- project, version string and build
+      timestamp are byte-identical between them.
+      Chosen over the as-shipped firmware (elf 61d714e4...) because it carries a
+      PCF85063 driver the original lacks: symbol-string comparison shows 2
+      references in the published image and 0 in the original. This board has
+      that RTC at 0x51, so the firmware it shipped with could not talk to it.
+      History on this unit: shipped 61d714e4 -> published image b697e0d2 ->
+      i2c-variant-scan -> restore to 61d714e4 -> RM67162 driver attempts ->
+      restore to 61d714e4 -> published image b697e0d2 (current). Both stored
+      backups hold the AS-SHIPPED firmware, so a restore rolls back to that and
+      loses the RTC driver; reflashing the published image takes seconds and its
+      sha256 is a8939c043a738a139d0fad9849bbdab80331b3e1059832bfc0ccce9aaa364782.'
   bsp_component:
     value: none exists
     provenance: vendor_doc
