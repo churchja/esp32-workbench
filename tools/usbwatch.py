@@ -117,7 +117,14 @@ def show(p, prefix):
         print(f"           {'':<1}    serial: {p.serial_number}{extra}")
 
 
-def main():
+def main(clock=time.monotonic):
+    """
+    `clock` is injectable, and defaults to time.monotonic rather than
+    time.time, for the same reason esp32flash's read ladder does: --timeout
+    measures a DURATION. time.time is wall-clock and can step backwards when
+    NTP corrects it, which would silently extend or collapse the deadline
+    mid-wait. Nothing here would have noticed.
+    """
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--once", action="store_true", help="print current state, exit")
@@ -163,7 +170,7 @@ def main():
         print(f"  {stamp()} waiting for a NEW device to arrive...")
 
     print(f"  {stamp()} watching (Ctrl-C to stop)...")
-    start = time.time()
+    start = clock()
     try:
         while True:
             time.sleep(args.interval)
@@ -178,7 +185,7 @@ def main():
                 if dev not in new:
                     print(f"  {stamp()} - {dev}  gone")
             cur = new
-            if args.timeout and (time.time() - start) > args.timeout:
+            if args.timeout and (clock() - start) > args.timeout:
                 print(f"  {stamp()} timeout after {args.timeout:.0f}s")
                 return 2
     except KeyboardInterrupt:

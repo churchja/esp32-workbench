@@ -13,10 +13,15 @@ Each fix patched the trigger that had been observed rather than asking what
 
 Run:  python3 tools/test_usbwatch.py
 """
+import contextlib
+import inspect
+import io
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import usbwatch  # noqa: E402
 from usbwatch import new_usb_devices  # noqa: E402
 
 FAIL = []
@@ -77,6 +82,56 @@ check("same board, new path, is an arrival",
 print("\ndisappearance is not arrival")
 check("a board going away triggers nothing",
       new_usb_devices({"/dev/ch": CH340}, {}), {})
+
+print("\n--timeout measures a duration, so it must not use wall time")
+
+
+class ClockExhausted(RuntimeError):
+    """The loop polled more times than the test scripted."""
+
+
+class FakeClock:
+    def __init__(self, ticks):
+        self.ticks = list(ticks)
+
+    def __call__(self):
+        if not self.ticks:
+            # A loop that never trips its deadline would spin forever. Raising
+            # here turns that into a reported FAIL instead of a traceback that
+            # aborts every assertion after it.
+            raise ClockExhausted()
+        return self.ticks.pop(0)
+
+
+def run_watch(argv, ticks):
+    """Drive main()'s watch loop with a scripted clock and no real devices."""
+    real_argv, real_snapshot = sys.argv, usbwatch.snapshot
+    sys.argv = ["usbwatch.py"] + argv
+    usbwatch.snapshot = lambda include_all: {}
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return usbwatch.main(clock=FakeClock(ticks))
+    except ClockExhausted:
+        return "never tripped the deadline (ran past the scripted clock)"
+    finally:
+        sys.argv, usbwatch.snapshot = real_argv, real_snapshot
+
+
+# --interval 0 keeps time.sleep(0) instant; the clock, not the sleep, is what
+# the deadline is measured against.
+check("the deadline fires once the elapsed time passes --timeout",
+      run_watch(["--timeout", "5", "--interval", "0"], [0.0, 10.0]), 2)
+
+# The point of measuring from `start` rather than per-iteration: elapsed time
+# accumulates across polls. Three polls at 1s, 2s and 9s -- only the last trips
+# a 5s deadline.
+check("elapsed time accumulates across polls rather than resetting",
+      run_watch(["--timeout", "5", "--interval", "0"], [0.0, 1.0, 2.0, 9.0]), 2)
+
+# A wall clock can step backwards when NTP corrects it; monotonic cannot.
+check("the default clock is monotonic, not wall time",
+      inspect.signature(usbwatch.main).parameters["clock"].default,
+      time.monotonic)
 
 print()
 if FAIL:
