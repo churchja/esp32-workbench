@@ -441,10 +441,20 @@ does not repeat the search.
 
 - **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
   first is an 8-byte EUI64; an early parser truncated it into a wrong 6-byte
-  identity, and identity is the backup key. Neither board has an EUI64. Closing
-  this needs a C6, C5, or H2.
-- **Boards behind a UART bridge** (CH340/CP210x/FTDI). Both boards here are
-  native USB; the bridge path in `identify_usb()` is untested against hardware.
+  identity, and identity is the backup key. None of the seven boards here is a
+  C6, C5 or H2, so none prints one. Closing this needs one of those parts — it
+  is the only path in `esp32ident.py` that has never met the hardware it exists
+  for at all.
+- **Bridge chips other than CH340.** The bridge path itself is validated — the
+  CH340 board closed it, and is described above. But `esp32ident.py` also
+  claims **CP210x** (`10c4:ea60/ea70/ea71`) and **FTDI**
+  (`0403:6001/6010/6015`), and neither has met hardware. They share the code
+  path CH340 exercised, so this is a narrower gap than it looks: what is
+  untested is the VID/PID table entries, not the logic around them.
+
+  An earlier version of this file listed the whole bridge path here as untested
+  while the CH340 section three screens up said it was closed. Two prose claims
+  about the same fact, drifting apart because nothing checks prose.
 
 ## Is it working?
 
@@ -454,14 +464,19 @@ does not repeat the search.
 
 Exit 0 all green · 1 degraded (warnings, core paths fine) · 2 something failed.
 
-It runs four layers, which prove progressively more:
+It runs five layers, which prove progressively more:
 
-| Layer | Proves | Needs a board? |
-|---|---|---|
-| `tools/doctor.py` | esptool present and which dialect, platform installed, gate wired, `backups/` writable | no |
-| `tools/test_*.py` | pure logic: binary parsers, banner parsing, gate decision, provenance | no |
-| `validate_profiles.py` | every stored profile satisfies the schema | no |
-| real PlatformIO | template compiles; the pre-upload hook actually fires | no |
+| # | Layer | Proves | Needs a board? |
+|---|---|---|---|
+| 1 | `tools/doctor.py` | esptool present and which dialect, platform installed, gate wired, `backups/` writable | no |
+| 2 | `tools/test_*.py` | pure logic: binary parsers, banner parsing, gate decision, provenance, per-rung timing | no |
+| 3 | `validate_profiles.py` | every stored profile satisfies the schema | no |
+| 4 | **real ESP-IDF** | `idf-base` builds for `esp32c6`; the gate fires on `idf.py flash` and correctly ignores `--dry-run` | no |
+| 5 | real PlatformIO | template compiles; the pre-upload hook actually fires | no |
+
+Layer 4 is the one that matters most and was missing from this table until an
+audit caught it: it is the only layer that exercises the **primary** framework
+and the gate mechanism most flashing actually goes through.
 
 `doctor.py` is the one to run when something feels off — it cross-checks its own
 reading of the esptool dialect against what `Esptool()` concludes, so a silent
