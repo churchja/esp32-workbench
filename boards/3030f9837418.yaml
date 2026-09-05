@@ -233,9 +233,29 @@ board:
       unverified deliberately; see the LilyGo profile for what happens when a
       board is identified by anything other than measurement.'
   after_no_reset_hazard:
-    value: guaranteed port loss on this chip, not a risk
-    provenance: verified
-    note: 'The port dropped THREE times on this board, every time after an
+    value: RETRACTED -- the one clean test parked successfully
+    provenance: unverified
+    retraction: 'This fact previously read "guaranteed port loss on this chip,
+      not a risk" with provenance verified, on the strength of three observed
+      port losses. It was wrong. The --after bug meant restore, flash and erase
+      never forwarded the option, so esptool applied its own hard-reset default
+      and the operations being measured were not the operations requested.
+      Reconstructed: only TWO ports were actually lost, both after hard-resets
+      (an erase rebooting into empty flash, and a restore booting firmware that
+      shows no USB); the third counted loss was an explicitly requested
+      hard-reset behaving as asked. The ONE operation that genuinely ran with
+      --after no-reset -- the backup, which does forward it -- parked the board
+      successfully, and the erase that followed reused the same port. The
+      evidence supports close to the opposite of the claim it was written for.
+      What survives on independent evidence: USB-OTG parts provide USB from
+      firmware rather than silicon (established at first contact, when this
+      board arrived invisible), an erased S2 cannot bring USB up because no
+      firmware remains to do it, and this board''s own firmware presents no USB
+      device. Kept rather than deleted because the reasoning failure is the
+      useful part -- three measurements were attributed to a mechanism without
+      checking whether the code had applied the setting being measured, and the
+      mechanism being independently real is what made that comfortable.'
+    superseded_note: 'The port dropped THREE times on this board, every time after an
       operation ending in --after no-reset. The mechanism is specific to
       USB-OTG. On an S3 the USB-Serial/JTAG controller is a hardware peripheral
       that enumerates regardless of firmware, so parking in download mode leaves
@@ -266,14 +286,17 @@ board:
 verification_log:
 - date: '2026-09-05'
   tested: board.after_no_reset_hazard
-  method: 'Observed three times in one session, not reasoned about. Each of a
+  result_superseded: RETRACTED -- see board.after_no_reset_hazard.retraction
+  method: 'INVALID AS RUN. Observed three times in one session, not reasoned about. Each of a
     backup, an erase and a restore was run with --after no-reset; after every
     one the port was gone -- ioreg -p IOUSB showed zero attached devices, not
     merely a renamed port -- and each recovery needed a manual BOOT+RESET. The
     fourth operation was run with --after hard-reset instead and the board came
     back on its own.'
-  result: verified
-  note: 'Contrast with the five S3 boards in this repo, where --after no-reset
+  result: retracted
+  note: 'The method below was sound in form and wrong in substance: three of the
+    four operations did not run with the setting they were credited to, because
+    restore, flash and erase silently discarded --after. Contrast with the five S3 boards in this repo, where --after no-reset
     has never once cost a port. The difference is that USB-Serial/JTAG is
     silicon and USB-OTG is firmware. The most acute case is an erased S2: with
     no firmware in flash there is nothing to bring USB up, so the board is

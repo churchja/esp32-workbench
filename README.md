@@ -864,36 +864,59 @@ GPIO38 as an indicator LED would have gated the display rail, and
 than failing. The entry is kept in the profile as `value: WRONG` — a record of a
 failed inference, since the inference was reasonable and still wrong.
 
-### `--after no-reset` is safe on an S3 and fatal on an S2
+### A retracted claim: `--after no-reset` on an S2
 
-`esp32flash.py` can park a board in download mode so the next command reuses the
-same port. On the five USB-Serial/JTAG boards here that has never once cost a
-port. On the Flipper module it cost the port **three times in one session** —
-after a backup, an erase and a restore — each needing a manual BOOT+RESET.
+This section previously read *"safe on an S3 and fatal on an S2"* and reported
+that parking cost the Flipper module its port **three times in one session**.
+**That was wrong, and it is instructive how.**
 
-The mechanism is not bad luck, and the split is exactly the interface split this
-README keeps returning to:
+The `--after` bug is why. `restore`, `flash` and `erase` never forwarded the
+option to esptool, so it was parsed, accepted and discarded, and esptool applied
+its own default of `hard-reset`. Reconstructing which operation actually ran
+with what:
 
-| | USB-Serial/JTAG (S3, C3, C6, C5, H2, P4) | USB-OTG (S2) |
-|---|---|---|
-| What provides USB | a **hardware peripheral**, independent of firmware | **firmware** — the esptool stub while it runs |
-| After `--after no-reset` | port persists | nothing takes the stub's place; port evaporates |
-| After a whole-chip erase | port persists | **cannot** return without BOOT+RESET |
+| # | operation | requested | esptool actually got | port after |
+|---|---|---|---|---|
+| 1 | `backup` | `no-reset` | **`no-reset`** — `backup` forwards it | **survived**; the next command reused it |
+| 2 | `erase` | `no-reset` | `hard-reset` *(bug)* | lost — rebooted into empty flash |
+| 3 | `restore` | `no-reset` | `hard-reset` *(bug)* | lost — booted firmware that shows no USB |
+| 4 | `backup` | `hard-reset` | `hard-reset` | invisible — **expected, not a loss** |
 
-The tool warns generically that *"a resident stub can drop USB."* On a USB-OTG
-target that is not a risk, it is a **certainty** — and the profile already
-records `usb_mode: USB-OTG`, so the warning could name it rather than hedge.
+Two losses, not three, and **both were hard-resets**. The fourth was counted as
+a loss when it was the explicitly requested behaviour. And the one operation that
+genuinely ran `--after no-reset` on this S2 **parked it successfully** — the
+`erase` that followed reused the same port.
 
-The erased-S2 case is the sharpest form of the trap this repo has hit all night:
-with no firmware in flash there is nothing to bring USB up, so the board is
-electrically indistinguishable from an unplugged cable. `ioreg -p IOUSB` shows
-zero devices for a working board running silent firmware, for an erased board,
-and for a board that is not plugged in. That is why `usbwatch.py` prints the
-BOOT+RESET reminder instead of reporting "no board found" — it cannot tell those
-apart, so it does not pretend to.
+So the evidence does not support the claim it was written to support. It
+supports close to the opposite: the single clean test of `no-reset` on a USB-OTG
+board worked.
 
-**On a USB-OTG board, use `--after hard-reset`** and accept a port change rather
-than guaranteeing a port loss.
+**What survives, on independent evidence:**
+
+- **USB-OTG parts provide USB from firmware, not from silicon.** An S3's
+  USB-Serial/JTAG controller enumerates whatever the firmware does; an S2 has no
+  such peripheral. Established before any of this, at first contact — the board
+  arrived invisible and needed BOOT+RESET.
+- **An erased S2 cannot bring USB up at all**, because no firmware remains to do
+  it. Structural, and observed.
+- **This board's own firmware presents no USB device**, so it is invisible
+  whenever it is running normally. Observed at first contact, before any write.
+
+**What does not survive:** that `--after no-reset` costs the port on an S2. One
+clean data point says it does not, and the losses attributed to it were caused
+by a bug that turned the request into its opposite.
+
+The erased-S2 case is still the sharpest form of the trap this repo hit all
+night: `ioreg -p IOUSB` shows zero devices for a working board running silent
+firmware, for an erased board, and for an unplugged cable alike. That is why
+`usbwatch.py` prints the BOOT+RESET reminder instead of reporting "no board
+found" — it cannot tell those apart, so it does not pretend to.
+
+The section is kept rather than deleted because the reasoning failure is the
+useful part: **three measurements were attributed to a mechanism without
+checking whether the code had actually applied the setting being measured.**
+The mechanism was real and independently true, which is what made the wrong
+attribution so comfortable.
 
 ### Not validated
 
