@@ -427,6 +427,7 @@ which is the useful result:
 | QT Py A | #2 | 4MB | 50 | identical |
 | QT Py B | #1 | 4MB | **49** | identical |
 | **LilyGo** | #1 | **16MB** | **0** | identical |
+| **Flipper module** | #1 | 4MB | **0** | identical |
 
 The same board reproduces exactly; a different board of the same model does
 not. So the count is **device-specific** — MAC-derived values, a differing key
@@ -454,7 +455,23 @@ the whole-image count). That reconciliation is the load-bearing check — it pro
 the regions leave no gap where a difference could hide and be silently
 under-reported.
 
-What holds across all five restores is the claim that matters: **`restore` is
+**The Flipper module's restore is the only one that proves the write happened.**
+Every other row restored over firmware that differed from the backup, so a match
+meant something. This board was **bit-identical to a backup taken six hours and
+several power cycles earlier** — its firmware writes nothing to flash — which
+made the obvious test worthless: restoring bytes that are already present and
+finding a match is indistinguishable from the write doing nothing at all.
+
+So the flash was **erased first** and confirmed blank — 0 of 131,072 bytes
+non-`0xff`, byte 0 going `0xe9` → `0xff` — before the restore ran. Only then does
+a bit-identical read-back mean the restore actually wrote. That check is the
+difference between a verification and a tautology.
+
+It is also the first USB-OTG restore verified on a board that is **not** an
+Adafruit QT Py. The two QT Pys are same-model twins, so everything known about
+restoring over USB-OTG previously rested on one product.
+
+What holds across all six restores is the claim that matters: **`restore` is
 exact.** Bootloader, partition table, both app slots, `uf2` and `ffat` are
 byte-perfect every time, and every byte that moves is inside the one partition
 designed to be written. A whole-image SHA-256 reports only "mismatch" and
@@ -803,6 +820,37 @@ GPIO38 as an indicator LED would have gated the display rail, and
 `analogRead(4) * 2` would have returned a plausible wrong battery voltage rather
 than failing. The entry is kept in the profile as `value: WRONG` — a record of a
 failed inference, since the inference was reasonable and still wrong.
+
+### `--after no-reset` is safe on an S3 and fatal on an S2
+
+`esp32flash.py` can park a board in download mode so the next command reuses the
+same port. On the five USB-Serial/JTAG boards here that has never once cost a
+port. On the Flipper module it cost the port **three times in one session** —
+after a backup, an erase and a restore — each needing a manual BOOT+RESET.
+
+The mechanism is not bad luck, and the split is exactly the interface split this
+README keeps returning to:
+
+| | USB-Serial/JTAG (S3, C3, C6, C5, H2, P4) | USB-OTG (S2) |
+|---|---|---|
+| What provides USB | a **hardware peripheral**, independent of firmware | **firmware** — the esptool stub while it runs |
+| After `--after no-reset` | port persists | nothing takes the stub's place; port evaporates |
+| After a whole-chip erase | port persists | **cannot** return without BOOT+RESET |
+
+The tool warns generically that *"a resident stub can drop USB."* On a USB-OTG
+target that is not a risk, it is a **certainty** — and the profile already
+records `usb_mode: USB-OTG`, so the warning could name it rather than hedge.
+
+The erased-S2 case is the sharpest form of the trap this repo has hit all night:
+with no firmware in flash there is nothing to bring USB up, so the board is
+electrically indistinguishable from an unplugged cable. `ioreg -p IOUSB` shows
+zero devices for a working board running silent firmware, for an erased board,
+and for a board that is not plugged in. That is why `usbwatch.py` prints the
+BOOT+RESET reminder instead of reporting "no board found" — it cannot tell those
+apart, so it does not pretend to.
+
+**On a USB-OTG board, use `--after hard-reset`** and accept a port change rather
+than guaranteeing a port loss.
 
 ### Not validated
 

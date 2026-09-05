@@ -18,6 +18,42 @@
       ],
       "baud": 460800,
       "esptool_version": "5.2.0"
+    },
+    {
+      "file": "full-20260905T081852Z-4194304.bin",
+      "sha256": "542091b9ac8b779726efcc8ee7ce6812b693f79d2fde3ec4da6b056671781d32",
+      "bytes": 4194304,
+      "created": "2026-09-05T08:19:25.017184+00:00",
+      "chip": "ESP32-S2 (revision v1.0)",
+      "read_seconds": 33.0,
+      "ladder_seconds": 33.0,
+      "attempts": [
+        {
+          "baud": 460800,
+          "seconds": 33.0,
+          "ok": true
+        }
+      ],
+      "baud": 460800,
+      "esptool_version": "5.2.0"
+    },
+    {
+      "file": "full-20260905T082542Z-4194304.bin",
+      "sha256": "542091b9ac8b779726efcc8ee7ce6812b693f79d2fde3ec4da6b056671781d32",
+      "bytes": 4194304,
+      "created": "2026-09-05T08:26:15.784225+00:00",
+      "chip": "ESP32-S2 (revision v1.0)",
+      "read_seconds": 33.4,
+      "ladder_seconds": 33.4,
+      "attempts": [
+        {
+          "baud": 460800,
+          "seconds": 33.4,
+          "ok": true
+        }
+      ],
+      "baud": 460800,
+      "esptool_version": "5.2.0"
     }
   ],
   "chip": "ESP32-S2 (revision v1.0)"

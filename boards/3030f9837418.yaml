@@ -232,6 +232,23 @@ board:
       ROM download mode -- usb_product is the generic "ESP32-S2". Left
       unverified deliberately; see the LilyGo profile for what happens when a
       board is identified by anything other than measurement.'
+  after_no_reset_hazard:
+    value: guaranteed port loss on this chip, not a risk
+    provenance: verified
+    note: 'The port dropped THREE times on this board, every time after an
+      operation ending in --after no-reset. The mechanism is specific to
+      USB-OTG. On an S3 the USB-Serial/JTAG controller is a hardware peripheral
+      that enumerates regardless of firmware, so parking in download mode leaves
+      a stable port -- which is why --after no-reset has worked on five S3
+      boards. On the S2 there is no such peripheral: USB is provided by the
+      esptool stub while it runs, and when the operation ends nothing takes it
+      over, so the port evaporates. After a whole-chip erase it cannot come back
+      at all without BOOT+RESET, because there is no firmware left to bring USB
+      up. esp32flash.py warns generically that "a resident stub can drop USB";
+      for a USB-OTG target that is not a risk but a certainty, and the profile
+      already records usb_mode: USB-OTG, so the tool has what it needs to say so
+      specifically. Use --after hard-reset on this board and accept a port
+      change instead.'
   read_baud_max:
     value: 460800
     provenance: verified
@@ -247,6 +264,42 @@ board:
       times, and all three far off the model in the same direction. Contrast the
       USB-Serial/JTAG and bridge boards, which track the model within ~11%.'
 verification_log:
+- date: '2026-09-05'
+  tested: board.after_no_reset_hazard
+  method: 'Observed three times in one session, not reasoned about. Each of a
+    backup, an erase and a restore was run with --after no-reset; after every
+    one the port was gone -- ioreg -p IOUSB showed zero attached devices, not
+    merely a renamed port -- and each recovery needed a manual BOOT+RESET. The
+    fourth operation was run with --after hard-reset instead and the board came
+    back on its own.'
+  result: verified
+  note: 'Contrast with the five S3 boards in this repo, where --after no-reset
+    has never once cost a port. The difference is that USB-Serial/JTAG is
+    silicon and USB-OTG is firmware. The most acute case is an erased S2: with
+    no firmware in flash there is nothing to bring USB up, so the board is
+    electrically indistinguishable from an unplugged cable -- which is exactly
+    the symptom usbwatch.py refuses to report as "no board found".'
+- date: '2026-09-05'
+  tested: restore
+  method: 'ERASE, CONFIRM BLANK, RESTORE, READ BACK, COMPARE. The erase step is
+    not incidental -- it is what makes the result mean anything. This board was
+    bit-identical to its backup after multiple power cycles, so restoring the
+    same bytes and finding a match would have been indistinguishable from the
+    write silently doing nothing. A whole-chip erase was taken first and the
+    flash confirmed blank (0 of 131072 bytes non-0xff in the first 128KB, byte 0
+    0xe9 -> 0xff), so the restore had genuinely empty flash to fill.'
+  result: verified
+  note: 'BIT-IDENTICAL. Zero differing bytes across all 4,194,304, every region,
+    sha256 542091b9ac8b779726efcc8ee7ce6812b693f79d2fde3ec4da6b056671781d32
+    matching both prior reads. Restore wrote in 30.5s, read back in 33s.
+    First USB-OTG restore verified on a board that is NOT an Adafruit QT Py --
+    the two QT Pys are same-model twins, so the S2 restore path previously
+    rested on one product. Different vendor, different flash manufacturer
+    (0x5e), different partition layout, no PSRAM.
+    nvs delta 0, placing it with the ESP8266 and LilyGo rather than the QT Pys
+    (50, 50, 49). Its firmware writes nothing to flash on boot -- established
+    before the erase, by reading the board and finding it already matched a
+    backup taken six hours and several power cycles earlier.'
 - date: '2026-09-04'
   tested: board.read_baud_max
   method: Full 4MB esptool read-flash via the backup baud ladder.
