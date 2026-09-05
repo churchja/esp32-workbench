@@ -130,10 +130,11 @@ what the tools actually recorded.
 | Adafruit QT Py ESP32-S2 **A** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d661364` |
 | Adafruit QT Py ESP32-S2 **B** | `ESP32-S2FNR2` | `esp32s2` | 4MB | 2MB | `USB-OTG` | 6 | **460800** | `d4f98d66124a` |
 | FutureProofHomes Satellite1 CORE rev4.1 | `ESP32-S3` | `esp32s3` | 16MB | 8MB | `USB-Serial/JTAG` | 5 | **230400** | `d83bda407850` |
+| M5Stack Capsule v1.1 | `ESP32-S3` | `esp32s3` | 8MB | none | `USB-Serial/JTAG` | 6 | **230400** | `aca7040355d0` |
 | Flipper Zero Wi-Fi Module v1 | `ESP32-S2` | `esp32s2` | 4MB | none | `USB-OTG` | 5 | **460800** | `3030f9837418` |
 | CH340 board (ESP8266) | `ESP8266EX` | `**none**` | 4MB | none | `CH340 bridge` | 0 | **230400** | `bcddc2246e97` |
 
-Backup and hash-verify: **all nine**. Restore: verified on the S3 devkit, both
+Backup and hash-verify: **all ten**. Restore: verified on the S3 devkit, both
 QT Pys, and the ESP8266, and performed on the LilyGo after its variant scan; the
 M5 Stamp, the Cardputer ADV and the Flipper module have not been written to.
 Console over USB: free on every S3, needs `templates/idf-usb-console` on all
@@ -184,7 +185,7 @@ interface**, not the individual board:
 | Interface | Boards | Max read baud |
 |---|---|---|
 | USB-OTG | **3** × ESP32-S2 | **460800** |
-| USB-Serial/JTAG | **5** × ESP32-S3 | 230400 |
+| USB-Serial/JTAG | **6** × ESP32-S3 | 230400 |
 | CH340 UART bridge | ESP8266 | 230400 |
 
 Every board within an interface agrees exactly, with **zero disagreement inside
@@ -205,9 +206,9 @@ The ladder is still the right design, but for the plainer reason: **no constant
 works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes all three S2s
 four times slower than necessary. `esp32flash.py` negotiates rather than assumes.
 
-`n` is still small — nine boards, three interfaces, one of which (the bridge)
+`n` is still small — ten boards, three interfaces, one of which (the bridge)
 still has a single example. Treat the table as a measured pattern, not a law.
-The pattern's strength is that boards five through nine *tested* it rather than
+The pattern's strength is that boards five through ten *tested* it rather than
 producing it; its weakness is that every board in a group shares one SoC family,
 so what is measured is a *peripheral*, not an interface in the abstract.
 
@@ -243,7 +244,7 @@ rung that actually produced the image:
 | LilyGo 756.5s vs 728 | fell back from 460800 | inflated by an unrecorded amount |
 
 So the ESP8266's "11% over model" and the LilyGo's "3.9%" are **ceilings on the
-error, not the error**. Six of the nine boards fall back — the five
+error, not the error**. Seven of the ten boards fall back — the six
 USB-Serial/JTAG boards and the CH340 bridge; the three USB-OTG S2s never do —
 so any laddered duration in a *pre-change* manifest carries the same inflation.
 
@@ -262,9 +263,23 @@ Exactly the discarded attempt apart, with the rungs summing to the ladder total
 — the invariant `test_flash.py` asserts, now observed on hardware rather than
 against a scripted clock.
 
-It also produced a number that did not previously exist: **a failed rung costs
-4.7s**. The S3 devkit's profile has claimed "reproducible in <6s" since the
-first day, from a hand-run experiment. Every fallback now records it for free.
+It also produced a number that did not previously exist: **the cost of a failed
+rung**. Two have now been measured, and the result is that it is not a constant:
+
+| Board | Discarded 460800 attempt |
+|---|---|
+| Satellite1 CORE | 4.7s |
+| M5Stack Capsule | **7.4s** |
+
+57% apart. The S3 devkit's profile has claimed *"reproducible in <6s"* since the
+first day, hand-measured on that one board and stated as though it described the
+failure mode; the Capsule exceeds it. That note now carries a caveat rather than
+being deleted, because the bound was true where it was taken.
+
+Predicting the Capsule's fallback at "about 4.7s" before the read was the same
+error in miniature — one measurement promoted to a constant, committed within
+the hour of writing that pattern down. The timer records the cost per attempt
+precisely so it does not have to be assumed.
 
 And 750.5s is the first *clean* 16MB timing here — 3.1% over the model, against
 the LilyGo's whole-ladder 3.9% for the same size and rate. The two boards are
@@ -627,7 +642,7 @@ failed inference, since the inference was reasonable and still wrong.
 
 - **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
   first is an 8-byte EUI64; an early parser truncated it into a wrong 6-byte
-  identity, and identity is the backup key. None of the nine boards here is a
+  identity, and identity is the backup key. None of the ten boards here is a
   C6, C5 or H2, so none prints one. Closing this needs one of those parts — it
   is the only path in `esp32ident.py` that has never met the hardware it exists
   for at all.

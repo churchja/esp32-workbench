@@ -1,6 +1,6 @@
 schema_version: 1
-profile_id: e072a1fb9c5c
-identified_at: '2026-09-04T23:50:24.956051+00:00'
+profile_id: aca7040355d0
+identified_at: '2026-09-05T06:31:44.263527+00:00'
 port_seen_on: /dev/cu.usbmodem1101
 identity:
   usb_vid:
@@ -10,7 +10,7 @@ identity:
     value: '0x1001'
     provenance: usb
   usb_serial_number:
-    value: E0:72:A1:FB:9C:5C
+    value: AC:A7:04:03:55:D0
     provenance: usb
   usb_product:
     value: USB JTAG/serial debug unit
@@ -43,7 +43,7 @@ identity:
     - BT 5 (LE)
     - Dual Core + LP Core
     - 240MHz
-    - Embedded PSRAM 8MB (AP_3v3)
+    - Embedded Flash 8MB (XMC)
     provenance: probed
     note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
       of the vendor listing.
@@ -56,12 +56,12 @@ identity:
     note: Reported by esptool 5.x from the chip itself; corroborates the USB VID/PID reading of native
       vs bridge.
   mac:
-    value: e0:72:a1:fb:9c:5c
+    value: ac:a7:04:03:55:d0
     provenance: probed
     note: Base MAC from eFuse (read from the 'MAC' line) -- globally unique per board. Used as the profile
       and backup key so two boards of the same model never collide.
   flash_manufacturer_id:
-    value: '0xc8'
+    value: '0x20'
     provenance: probed
   flash_device_id:
     value: '0x4017'
@@ -106,24 +106,42 @@ identity:
       subtype: ota_0
       offset: '0x10000'
       offset_int: 65536
-      size: '0x600000'
-      size_int: 6291456
-      size_human: 6MB
+      size: '0x330000'
+      size_int: 3342336
+      size_human: 3.1875MB
+      encrypted: false
+    - label: app1
+      type: app
+      subtype: ota_1
+      offset: '0x340000'
+      offset_int: 3407872
+      size: '0x330000'
+      size_int: 3342336
+      size_human: 3.1875MB
       encrypted: false
     - label: spiffs
       type: data
       subtype: spiffs
-      offset: '0x610000'
-      offset_int: 6356992
-      size: '0x1f0000'
-      size_int: 2031616
-      size_human: 1.9375MB
+      offset: '0x670000'
+      offset_int: 6750208
+      size: '0x180000'
+      size_int: 1572864
+      size_human: 1.5MB
+      encrypted: false
+    - label: coredump
+      type: data
+      subtype: coredump
+      offset: '0x7f0000'
+      offset_int: 8323072
+      size: '0x10000'
+      size_int: 65536
+      size_human: 64KB
       encrypted: false
     provenance: probed
     note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
       it over any assumed default.
   partition_table_md5:
-    value: 88d2725f330ce2d135e905d4993c9ee9
+    value: 467eb896e29d1aa938c557f4cdfc4c5b
     provenance: probed
   applications:
     value:
@@ -133,7 +151,7 @@ identity:
       build_time: '12:12:53'
       build_date: Mar  5 2024
       idf_version: v4.4.7-dirty
-      app_elf_sha256: 31af57d0f57185fd50d5c8defbba9a20f3a764d25a80bc73db1cd4fdb97f4100
+      app_elf_sha256: a2d0f82273b4491d164bbc796245734262c86082f9d88cc9bb9bb9b56b0d042c
       partition: app0
     provenance: probed
     note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
@@ -170,7 +188,7 @@ _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0
   esptool_dialect: hyphenated (5.x)
-  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788565822
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788589901
   flash_id_rc: 0
   flash_id_output: 'esptool v5.2.0
 
@@ -184,13 +202,13 @@ _diagnostics:
 
     Chip type:          ESP32-S3 (QFN56) (revision v0.2)
 
-    Features:           Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz, Embedded PSRAM 8MB (AP_3v3)
+    Features:           Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz, Embedded Flash 8MB (XMC)
 
     Crystal frequency:  40MHz
 
     USB mode:           USB-Serial/JTAG
 
-    MAC:                e0:72:a1:fb:9c:5c
+    MAC:                ac:a7:04:03:55:d0
 
 
     Uploading stub flasher...
@@ -204,7 +222,7 @@ _diagnostics:
 
     =========================
 
-    Manufacturer: c8
+    Manufacturer: 20
 
     Device: 4017
 
@@ -216,37 +234,58 @@ _diagnostics:
 
 
     Staying in bootloader.'
-  fixture_recorded: tests/fixtures/board1.txt
   partition_rc: 0
 board:
+  vendor:
+    value: M5Stack
+    provenance: inferred
+    note: 'Operator called it "M5Stack Capsule v1.1". Corroborated by the MAC OUI
+      ac:a7:04, which the Cardputer ADV (aca704007f60) also carries, and by the
+      partition table matching M5Stack''s stock layout byte-for-byte. Still
+      inferred, not vendor_doc: no vendor string reaches USB in download mode.'
   read_baud_max:
     value: 230400
     provenance: verified
-    note: 'Determined by physical test, not documentation. 256KB reads: 115200 OK 23.5s, 230400 OK 12.4s,
-      460800 FAIL, 921600 FAIL (''Serial data stream stopped: possible serial noise or corruption''),
-      reproducible in <6s at both failing rates [SEE CAVEAT -- this bound does not
-      generalise]. write-flash succeeded at 460800, so the ceiling applies
-      to READS only.'
-    caveat_fallback_bound: 'The "<6s" figure above is real for THIS board and does
-      not generalise. Once read_with_fallback began timing each rung, two other
-      boards measured their discarded 460800 attempt at 4.7s (Satellite1) and
-      7.4s (M5Stack Capsule). The second exceeds the bound. It was hand-measured
-      on one board and stated as though it described the failure mode.'
-    caveat: 'The 256KB figures in this note are CLEAN -- each rate was read
-      individually with the baud pinned, so no discarded attempt is folded in,
-      and the same is true of the 731s full read at a pinned 115200. The
-      manifest''s second entry (380.2s at 230400) went through the ladder and
-      may include a discarded 460800 attempt; whether the baud was pinned for
-      that run was not recorded, so treat it as an upper bound. Contrast the
-      other four laddered boards, whose durations are definitely whole-ladder.
-      read_with_fallback now times each rung separately; entries without an
-      "attempts" key predate that and were deliberately not retro-fitted.'
+    note: 'Physical test via the backup ladder: 460800 failed with serial
+      corruption after 7.4s, 230400 read 8MB in 374.1s. Sixth USB-Serial/JTAG
+      board, sixth to land on this ceiling. Measured 374.1s against 364.1s
+      predicted by the 10-bits-per-byte model, 2.7% over -- and it is the first
+      CLEAN 8MB timing in the repo. The M5 Stamp S3 (381.0s) and Cardputer ADV
+      (385.4s) figures are whole-ladder and predate the per-rung timer, so they
+      are upper bounds. This board''s own whole-ladder equivalent is 381.5s,
+      within half a second of the Stamp S3 -- same vendor, same stock partition
+      layout, effectively the same read.'
+  fallback_cost:
+    value: 7.4s
+    provenance: verified
+    note: 'THE DISCARDED 460800 ATTEMPT IS NOT A CONSTANT. The Satellite1
+      measured 4.7s for the same failure two hours earlier; this board took
+      7.4s, 57% longer. A prediction of "about 4.7s" was made before this read
+      and was wrong -- generalising a constant from a single measurement, which
+      is failure pattern 2 in the build log, committed immediately after
+      documenting it. Recording the cost per attempt rather than assuming it is
+      exactly what the per-rung timer exists for.
+      It also contradicts an older claim: the S3 devkit''s profile has said
+      since day one that the failures are "reproducible in <6s at both failing
+      rates", from a hand-run experiment on that one board. 7.4s exceeds that.
+      The bound was real for the board it was measured on and is not general.'
 verification_log:
-- date: '2026-09-04'
-  tested: board.read_baud_max
-  method: Read a 256KB region at 115200/230400/460800/921600 via esptool read-flash and recorded pass/fail
-    and duration.
+- date: '2026-09-05'
+  tested: board.fallback_cost
+  method: 'Recorded automatically by read_with_fallback, which times each baud
+    rung separately and returns them. No separate experiment was run -- the
+    figure falls out of the same backup that measured read_baud_max.'
   result: verified
-  note: Full 8MB backup measured 731s at 115200. 230400 halves that and is the highest rate this board
-    reads reliably.
-first_identified_at: '2026-09-04T18:55:47.981914+00:00'
+  note: 'Second measured fallback in the repo. Satellite1 4.7s, this board 7.4s.
+    Two points are not a distribution, but they are enough to retire "about 5
+    seconds" as a usable constant and enough to contradict the S3 devkit''s
+    "<6s" claim, which was hand-measured on one board and generalised.'
+- date: '2026-09-05'
+  tested: board.read_baud_max
+  method: Full 8MB esptool read-flash via the backup baud ladder.
+  result: verified
+  note: 'Tenth board, sixth USB-Serial/JTAG. Second post-fix backup to fall back,
+    so the second manifest where read_seconds and ladder_seconds diverge --
+    374.1 vs 381.5, differing by exactly the 7.4s discard, rungs summing to the
+    ladder total. Two fallbacks now measured at 4.7s and 7.4s, which is the
+    result: the cost varies and must be measured, not assumed.'
