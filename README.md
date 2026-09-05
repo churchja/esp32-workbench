@@ -795,7 +795,31 @@ parameter is `?q=`, established by running a control query for a component known
 to exist — the same discipline that catches a test suite reporting zero failures
 because it counted the wrong thing.
 
-**`pinmap` is deliberately still `{}`.** Two LilyGO-owned sources assign
+**`pinmap` now holds pins, every one `unverified`.** The driver example's
+`Kconfig.projbuild` supplied a third independent set — SCK 47, D0 18, D1 7,
+D2 48, D3 5, CS 6, RST 17 active-high, **PWR 38 on-level 1**, button 0, geometry
+240x536 — agreeing exactly with LilyGO's own header and factory example. Three
+sources reaching the same numbers separately is strong evidence, and still not a
+measurement on this unit, so every entry is `unverified` and the validator emits
+a *"do not drive this pin"* warning for each. That is the design working, not
+noise.
+
+GPIO38 is the best-corroborated pin here: LilyGO's Touch and Plus schematics
+label it `OL_EN`, and the driver example independently defaults the panel-power
+pin to 38 at active-high, its readme noting the Waveshare board it also supports
+has none. Three sources, two of them arrived at from working hardware rather
+than from a schematic.
+
+Two caveats travel with the map. All three sources describe the **non-touch
+QSPI** board, so `D2`/`D3` are unused on this Plus's regular-SPI wiring, and
+GPIO21/GPIO4 carry different functions here. And the earlier claim that this
+driver suits the Plus because it is "3-wire SPI" was **wrong**: three-wire means
+*no DC pin*, a protocol choice, not a single data lane. The example's bus width
+is a separate Kconfig option that defaults to QSPI. It does offer "Regular SPI",
+which `projects/lilygo-amoled-demo` selects along with the Plus's 40MHz rate —
+built clean, config verified in the generated `sdkconfig`, not yet flashed.
+
+Two LilyGO-owned sources assign
 different *functions* to the same GPIOs on boards both label 1.91":
 
 | GPIO | One build | Another build |

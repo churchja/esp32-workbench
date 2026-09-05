@@ -1,0 +1,6 @@
+dependencies:
+  # The stock example depends on the driver by local path (../../../), which
+  # only resolves inside the driver's own repo. Pull it from the registry.
+  crosser/esp-lcd-panel-rm67162: "^0.3.0"
+  idf: '>=5.0'
+  lvgl/lvgl: '>=9.3.0'

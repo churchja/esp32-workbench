@@ -161,7 +161,69 @@ identity:
     provenance: inferred
     note: 'Derived from probed chip_family exactly. Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
       not exported). Use: idf.py set-target esp32s3'
-pinmap: {}
+pinmap:
+  _source_note:
+    value: three independent sources agree; none tested on THIS board
+    provenance: unverified
+    note: 'Pins below agree across LilyGO''s LilyGo-AMOLED-Series header, the
+      older T-Display-S3-AMOLED factory example, and crosser/esp-lcd-panel-rm67162
+      v0.3.0 (main/Kconfig.projbuild defaults). Three sources reaching the same
+      numbers independently is strong, and is still not a measurement on this
+      unit. VARIANT CAVEAT: all three describe the NON-TOUCH QSPI board. This
+      board is the 1.91in Plus (RM67162 over regular SPI, CST816 touch at 0x15,
+      PCF85063 RTC at 0x51, BQ25896 PMU at 0x6b). D2 and D3 are unused on a
+      regular-SPI wiring, and GPIO21/GPIO4 carry DIFFERENT functions here than on
+      the non-touch board -- see the pinmap research_queue entry.'
+  lcd_sck:
+    value: 47
+    provenance: unverified
+  lcd_d0_mosi:
+    value: 18
+    provenance: unverified
+  lcd_d1_dc:
+    value: 7
+    provenance: unverified
+  lcd_d2:
+    value: 48
+    provenance: unverified
+    note: QSPI only. Unused on this board's regular-SPI wiring (d2 = -1).
+  lcd_d3:
+    value: 5
+    provenance: unverified
+    note: QSPI only. Unused on this board's regular-SPI wiring (d3 = -1).
+  lcd_cs:
+    value: 6
+    provenance: unverified
+  lcd_rst:
+    value: 17
+    provenance: unverified
+    note: Active HIGH per the driver example's RST_ACTIVE_LEVEL default.
+  lcd_pwr:
+    value: 38
+    provenance: unverified
+    note: 'PANEL POWER ENABLE, on-level 1 (active high). The single most
+      corroborated pin here: LilyGO''s Touch and Plus schematics label GPIO38
+      OL_EN, and the driver example independently defaults HWE_DISPLAY_PWR to 38
+      with HWE_DISPLAY_PWR_ON_LEVEL 1, its readme noting the Waveshare board it
+      also supports has no such pin. DANGER: the older non-touch repo calls this
+      pin PIN_LED. Driving it as an indicator gates the display rail.'
+  button_1:
+    value: 0
+    provenance: unverified
+    note: BOOT button. Consistent with the ESP32-S3 strapping pin.
+display:
+  width:
+    value: 240
+    provenance: unverified
+    note: Non-rotated. Used as 536x240 landscape; see the display research_queue
+      entry for the orientation-convention trap.
+  height:
+    value: 536
+    provenance: unverified
+  controller:
+    value: RM67162
+    provenance: community
+    source: https://components.espressif.com/components/crosser/esp-lcd-panel-rm67162
 peripherals: {}
 research_queue:
 - field: model_variant
