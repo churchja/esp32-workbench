@@ -1,0 +1,9 @@
+# LilyGo T-Display S3 AMOLED variant scan.
+# ESP32-S3, 16MB flash, USB-Serial/JTAG -> secondary console is free, so the
+# console block from idf-base is deliberately left at IDF's default.
+CONFIG_ESP_TASK_WDT_INIT=n
+CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# From the probed profile: identity.flash_size = 16MB.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y

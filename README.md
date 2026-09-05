@@ -391,6 +391,10 @@ under names that close to each other:
 Every one is ESP32-S3R8 with 16MB flash and 8MB OPI PSRAM. **The eFuse reading
 that separated the other six boards separates nothing here.**
 
+> **Resolved on hardware.** An I2C scan pinned it: **T-Display-S3 AMOLED Plus
+> 1.91"**, RM67162 over *single SPI*. Read the rest of this section anyway — the
+> interesting part is what the answer did to the guesses that preceded it.
+
 Nor does anything else the probe collects, and this generalises:
 
 | Field | Why it does not identify a board |
@@ -476,14 +480,49 @@ in `LilyGo_AMOLED::begin()`:
 | none of the above | 1.91" **non-touch** (QSPI) |
 
 Non-destructive, vendor-sanctioned — their library runs it on every boot across
-every family member — and it costs one flash, which the gate already permits
-because this board has a backup.
+every family member — and it costs one flash, which the gate permitted because
+this board has a verified backup.
 
-Looking at the panel splits most of the family too, but **not** the three 1.91"
-builds, and that is precisely the split GPIO38, GPIO21 and GPIO4 turn on. The
-I2C scan resolves it; eyeballing does not. Recorded as a negative result plus a
-concrete next action, so the next session runs the scan rather than repeating
-the search.
+`projects/i2c-variant-scan` reproduces that sequence and reports only. It ran:
+
+```
+pair A  SDA=1  SCL=2   -> no devices
+pair B  SDA=3  SCL=2   -> 0x15 0x51 0x6b
+
+VARIANT : T-Display-S3 AMOLED Plus 1.91in (RM67162, single SPI)
+BASIS   : CST816 (0x15) AND PCF85063 RTC (0x51) on SDA=3/SCL=2
+```
+
+`0x15` CST816 says a 1.91" touch board; `0x51` PCF85063 RTC says **Plus**, not
+Touch; `0x6b` BQ25896 is the `BOARD_AMOLED_191_SPI` PMU. Three independent
+confirmations on one bus. Pair C was never driven — the scan exits at the first
+hit, as LilyGO's own autodetect does, so the display-bus pins were never touched.
+
+### What the answer did to the guesses
+
+This is the part worth keeping. **Every one of the three GPIO conflicts resolved
+to the side that would have been wrong**, and the circumstantial evidence pointed
+at the wrong board:
+
+| Recorded before the scan | After |
+|---|---|
+| "consistent with the 1.91" **non-touch** board" — its board JSON matched flash size, mode, memory type, hwids *and* partition file | **Wrong.** It matched a *sibling* |
+| GPIO38 — `PIN_LED` or `OL_EN`? | **`OL_EN`** — panel power enable |
+| GPIO21 — button or touch INT? | **touch INT** |
+| GPIO4 — battery ADC, divider 2.0? | **dead code**, shadowed by the BQ25896; battery is read over I2C |
+| QSPI pins two repos agreed on | **inapplicable** — the Plus is single SPI, `d2 = d3 = -1` |
+
+Four board-JSON fields matched and the conclusion was still wrong, because those
+fields are shared across a product line. **Four matching fields is not
+identification.** The corroboration pass had predicted exactly this — *"the same
+board file would match several siblings"* — which is why it was filed as
+circumstantial and never written into a pinmap.
+
+Had the "obvious" values from the older non-touch repo been recorded, driving
+GPIO38 as an indicator LED would have gated the display rail, and
+`analogRead(4) * 2` would have returned a plausible wrong battery voltage rather
+than failing. The entry is kept in the profile as `value: WRONG` — a record of a
+failed inference, since the inference was reasonable and still wrong.
 
 ### Not validated
 

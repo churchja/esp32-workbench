@@ -165,95 +165,50 @@ pinmap: {}
 peripherals: {}
 research_queue:
 - field: model_variant
-  status: blocked
-  why: Six sibling boards share ESP32-S3R8 + 16MB flash + 8MB OPI PSRAM, and the partition
-    table, USB ID and app description are all stock arduino-esp32 values. Nothing readable
-    over USB separates them. Searched 2026-09-04; see board.probe_discriminates_variant.
-  how: 'TWO routes, and the cheap one is programmatic. (A) AN I2C SCAN -- LilyGO''s own
-    library already does exactly this in LilyGo_AMOLED::begin() to autodetect the board,
-    so it is a vendor-sanctioned sequence that runs on every family member: Wire.begin(1,2)
-    and probe AXP2101 -> 1.47in Lite; Wire.begin(3,2) and probe the CST816 touch address
-    -> a 1.91in TOUCH board, then probe 0x51 (PCF85063 RTC) -- present means 1.91in PLUS
-    (SPI), absent means 1.91in Touch (QSPI); Wire.begin(6,7) and probe SY6970 -> 2.41in
-    T4-S3; none of the above -> 1.91in non-touch (QSPI). Non-destructive, and the single
-    cheapest discriminating measurement. It does require flashing a scanner, so take the
-    backup first -- this board has one. (B) LOOK AT THE PANEL: 1.47in (194x368), 1.91in
-    (240x536, tall rectangle), 2.41in (450x600), 1.64in (280x456), 1.43/1.75in (466x466,
-    ROUND). Shape alone splits most of the family but does NOT separate the three 1.91in
-    builds, which is exactly the split that makes GPIO38, GPIO21 and GPIO4 hazardous.
-    Route A resolves that split and route B does not. Everything below stays blocked until
-    one of them is run.'
-  source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.cpp
+  status: resolved
+  why: 'Resolved on hardware 2026-09-04 by I2C scan -- T-Display-S3 AMOLED Plus 1.91in.
+    See board.model_variant and the verification_log entry. Kept rather than deleted
+    because the METHOD is the reusable part: no LilyGO AMOLED board can be told from
+    its siblings over USB, so any future one needs the same scan.'
+  how: python3 tools/esp32flash.py backup && flash projects/i2c-variant-scan && restore.
 - field: display
-  status: blocked
-  why: Controller, resolution and bus are all variant-dependent, and the variant is unknown.
-    Candidates by variant are recorded in board.variant_candidates.
-  how: 'Once the variant is known: SH8501 (1.47in), RM67162 (1.91in, QSPI 75MHz or single
-    SPI 40MHz over the SAME pins depending on build), RM690B0 (2.41in), CO5300 or SH8601
-    (1.43/1.75in round). No BSP exists for any of them -- see board.bsp_component -- so a
-    panel driver must be written or a third-party one adopted. Sources fetched 2026-09-04:
-    LilyGo-AMOLED-Series src/LilyGo_AMOLED.h and initSequence.h.'
-  note: 'Vendor sources state the RM67162 as 240x536 (portrait) in one file and 536x240
-    (landscape) in another. Not a contradiction -- native portrait, used landscape -- but
-    do not copy a WIDTH/HEIGHT pair without checking which convention the file uses.
-    Three further traps confirmed by corroboration: (1) 536x240 is a BOARD+PANEL property,
-    not an RM67162 property -- the Raydium datasheet does not list it among the IC''s
-    supported resolutions, so "has an RM67162" does not entail that geometry. (2) "1.91in
-    + RM67162" does not imply QSPI: LilyGo_AMOLED.h defines RM67162_AMOLED_SPI with
-    d2 = d3 = -1, a plain-SPI wiring of the same panel. (3) The bus clock is per panel in
-    the same header -- SH8501 30MHz, RM67162 QSPI 75MHz, RM67162 SPI 40MHz, RM690B0 36MHz
-    -- while cmdBits 8 and addrBits 24 are constant across all four, so those two travel
-    and the frequency does not.'
+  status: unknown
+  why: The variant is known now, so the candidate set collapses to one row -- but the
+    controller and bus below come from vendor files, not from this board.
+  how: 'For the Plus: RM67162 over SINGLE SPI at 40MHz -- NOT the 75MHz QSPI wiring.
+    LilyGo_AMOLED.h RM67162_AMOLED_SPI sets d2 = d3 = -1, so the widely-quoted 4-data-line
+    pin set belongs to a different board. Geometry is 240x536 native portrait, used as
+    536x240 landscape. cmdBits 8 / addrBits 24 hold across the family; the clock does not.
+    No BSP exists (board.bsp_component), so a driver must be written or adopted.'
+  danger: 'The 536x240 figure is a board+panel property, not an RM67162 property -- the
+    Raydium datasheet does not list that geometry, so "has an RM67162" does not entail it.'
 - field: pinmap
-  status: blocked
-  why: 'Two LilyGO-owned sources assign DIFFERENT FUNCTIONS to the same GPIOs on boards
-    they both label 1.91in, because they describe the non-touch and Touch/Plus builds.
-    Recording either set would be a coin flip on a live rail.'
-  how: Resolve the variant physically first. Then take pins from the source matching THAT
-    build, and mark every pin 'unverified' until a physical test confirms it.
-  danger: 'Three GPIOs carry different functions on different family members. GPIO38 --
-    PIN_LED (green LED; non-touch schematic netlist U2 pin 43 -> R10 2K -> D1 LED_GREEN
-    -> GND) versus OL_EN, the AMOLED panel POWER ENABLE, on the Touch and Plus schematics:
-    one drives an indicator, the other gates the display rail. GPIO21 -- button with a 10K
-    pull-up (non-touch net USET_KEY/KEY3) versus touch controller INT (Touch/Plus).
-    GPIO4 -- battery sense ADC on the 1.91in versus SD-card MISO on the T4-S3. Driving an
-    input-with-interrupt as an output, gating a display rail while expecting an LED, or
-    driving a card data line while expecting an analogue input, are all real-hardware
-    faults. Note that the display BUS parameters (clock, cmd/addr bits, SPI mode) are NOT
-    in this category -- getting those wrong yields a blank or garbled panel, not damage.
-    The hazard is the pins that travel alongside them.'
-  note: 'The 1.91in QSPI set that two vendor repos DO agree on is CS 6, SCK 47, D0 18, D1
-    7, D2 48, D3 5, RST 17 -- recorded here as a lead, deliberately NOT written into a
-    pinmap section, because it is unconfirmed for this unit and a third vendor file
-    (the LovyanGFX wrapper) disagrees.'
+  status: unknown
+  why: 'The variant is settled, so the three cross-variant conflicts are settled with it.
+    What remains is that no pin has been confirmed ON THIS BOARD -- vendor files are one
+    source and this unit already caught a vendor schematic being wrong about its own
+    flash part (see schematic_trust).'
+  how: Take the Plus rows from LilyGo_AMOLED.h and its schematic, and mark every pin
+    'unverified' until a physical test confirms it.
+  resolved_conflicts: 'All three now have an answer, and all three are the side the older
+    non-touch repo would have got WRONG. GPIO38 = OL_EN, the AMOLED panel POWER ENABLE --
+    not PIN_LED. GPIO21 = touch controller INT -- not a button. GPIO4 = nominally the
+    battery ADC but SHADOWED by the BQ25896 PMU, so the ADC path is dead code.'
+  danger: 'Driving GPIO38 as an indicator LED gates the display rail. Driving GPIO21 as
+    an output fights a touch controller interrupt line. Both were live risks while the
+    variant was unknown, which is why no pinmap was written; they are still live for
+    anyone copying the non-touch pin set onto this board.'
 - field: power
-  status: blocked
-  why: 'The divider ratio WAS established -- but only for one variant, and the other three
-    do not have a divider at all. Recording it would be wrong on three boards out of four.'
-  how: 'Resolve the variant first, then use the matching row below. Do not carry a value
-    across rows.'
-  found:
-    lead: 'BOARD_AMOLED_191 (1.91in QSPI) -- divider ratio 2.0, on GPIO4. Altium netlist
-      in the vendor schematic reads BAT -> R15 10K -> BAT_VOLT -> R16 10K -> GND with a
-      C20 0.1uF filter, and BAT_VOLT lands on U2 pin 9 = GPIO4. Independently corroborated
-      by LilyGo_AMOLED.cpp getBattVoltage(), which does analogReadMilliVolts(adcPins) * 2
-      with the comment that the hardware divider halves the actual voltage.'
-    sources:
-    - https://raw.githubusercontent.com/Xinyuan-LilyGO/T-Display-S3-AMOLED/main/schematic/T-DISPLAY-S3-AMOLED.pdf
-    - https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.cpp
-    per_variant:
-    - 'BOARD_AMOLED_191 (1.91in QSPI): pmu = NULL, adcPins = 4. The ONLY variant that
-      executes the ADC path. Ratio 2.0 established.'
-    - 'BOARD_AMOLED_191_SPI (1.91in SPI / Plus-style): adcPins = 4 as well, BUT has a PMU,
-      so getBattVoltage() returns BQ25896 over I2C and never reaches the ADC branch.
-      adcPins = 4 is effectively dead code here and 2.0 is NOT verified for it.'
-    - 'BOARD_AMOLED_147 (1.47in SH8501): adcPins = -1, AXP2101 PMU. NO DIVIDER EXISTS.'
-    - 'BOARD_AMOLED_241 (2.41in T4-S3): adcPins = -1, SY6970 PMU. No divider -- and GPIO4
-      on this board is SD-card MISO, not a battery sense line.'
-  danger: 'GPIO4 is the battery ADC on the 1.91in and SD-card MISO on the T4-S3. Reading
-    "battery voltage" off GPIO4 on the wrong variant reads a card data line. Two of the
-    four variants have no divider at all and must be read over I2C from their PMU, so a
-    hardcoded analogRead * 2 returns a plausible-looking wrong number rather than failing.'
+  status: resolved
+  why: 'Settled by the variant. This board reads battery voltage over I2C from a BQ25896
+    PMU at 0x6b -- confirmed present by the scan -- NOT through a resistive divider.'
+  how: 'Use the PMU. LilyGo_AMOLED::getBattVoltage() returns BQ.getBattVoltage() on this
+    variant and never reaches the ADC branch.'
+  danger: 'The divider ratio 2.0 on GPIO4, established from the vendor schematic and the
+    driver source, belongs to the 1.91in QSPI board and NOT to this one. Applying
+    analogReadMilliVolts(4) * 2 here exercises dead code and returns a plausible-looking
+    wrong number rather than failing. This is the concrete case for why it was never
+    recorded as a value.'
 - field: schematic_trust
   status: caution
   why: 'The non-touch T-DISPLAY-S3-AMOLED schematic shows U3 = W25Q32 (4MB). This unit
@@ -261,7 +216,7 @@ research_queue:
     So at least one published LilyGO schematic disagrees with shipped hardware.'
   how: Treat any single schematic as one source, not as ground truth. Cross-check against
     the board JSON, the library headers and -- where the chip can answer, as it did for
-    flash -- against the silicon itself.
+    flash and for the variant itself -- against the silicon.
 _diagnostics:
   esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
   esptool_version: 5.2.0
@@ -343,14 +298,24 @@ board:
     provenance: vendor_doc
     source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/README.MD
   model_variant:
-    value: null
-    provenance: unverified
-    note: 'NOT DETERMINED -- and not determinable by probing. Recorded as an
-      explicit negative so the next session does not re-run the search. "LilyGO
-      T-Display S3 AMOLED" names a FAMILY of at least six boards that differ in
-      panel controller, resolution, bus and pin assignment. Every one of them is
-      ESP32-S3R8 with 16MB flash and 8MB OPI PSRAM, so the eFuse reading that
-      separated the other six boards in this repo separates nothing here.'
+    value: T-Display-S3 AMOLED Plus 1.91in (RM67162, single SPI)
+    provenance: verified
+    note: 'Resolved 2026-09-04 by I2C scan on hardware, not by reading. Three
+      devices answered on SDA=3/SCL=2: 0x15 CST816 touch (so a 1.91in TOUCH
+      board), 0x51 PCF85063 RTC (so the PLUS, not the Touch), and 0x6b BQ25896
+      PMU (the BOARD_AMOLED_191_SPI signature). SDA=1/SCL=2 was silent, ruling
+      out the 1.47in Lite''s AXP2101. The SDA=6/SCL=7 pair was never driven --
+      the scan exits at the first hit, as LilyGO''s own autodetect does.
+      NOT determinable over USB: every board in this family is ESP32-S3R8 with
+      16MB flash and 8MB OPI PSRAM, which is why this needed a flash and a scan.'
+    scanner: projects/i2c-variant-scan
+  variant_bus:
+    value: single SPI, 40MHz (NOT QSPI)
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
+    note: 'RM67162_AMOLED_SPI sets d2 = d3 = -1. The QSPI pin set that two vendor
+      repos agreed on -- SCK 47, D0 18, D1 7, D2 48, D3 5, CS 6, RST 17 at 75MHz
+      -- is real and belongs to a DIFFERENT board. It does not apply here.'
   variant_candidates:
     value:
     - T-Display-AMOLED-Lite 1.47in 194x368 SH8501
@@ -376,14 +341,18 @@ board:
       app description is the standard arduino-esp32 core build stamp. Useful to
       know: these three fields identify a BUILD, never a board.'
   variant_evidence_weak:
-    value: consistent with the 1.91in non-touch board, not proof
+    value: WRONG -- it pointed at the non-touch board; the scan says Plus
     provenance: community
     source: https://raw.githubusercontent.com/Xinyuan-LilyGO/T-Display-S3-AMOLED/main/boards/lilygo-t-amoled.json
-    note: 'That board file declares flash_size 16MB, flash_mode qio, memory_type
-      qio_opi, hwids [0x303A,0x1001] and partitions default_16MB.csv -- all four
-      match the probe. The factory app (ESP-IDF v4.4.7, Mar 5 2024) also falls in
-      the Arduino-core era that repo requires (2.0.5 <= version < 3.0.0).
-      CIRCUMSTANTIAL: the same board file would match several siblings.'
+    note: 'KEPT AS A RECORD OF A FAILED INFERENCE, not as evidence. That board
+      file declares flash_size 16MB, flash_mode qio, memory_type qio_opi, hwids
+      [0x303A,0x1001] and partitions default_16MB.csv -- all four match this
+      probe, and the factory app era matched too. Every one of those checks
+      passed and the conclusion was still wrong, because the file matches a
+      SIBLING. The corroboration pass predicted exactly this ("the same board
+      file would match several siblings"), which is why it was recorded as
+      circumstantial and never written into a pinmap. Four matching fields is
+      not identification when the fields are shared across a product line.'
   bsp_component:
     value: none exists
     provenance: vendor_doc
@@ -393,6 +362,21 @@ board:
       BSP first" shortcut that the research_queue recommends is closed for this
       board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-04'
+  tested: board.model_variant
+  method: 'Flashed projects/i2c-variant-scan and read the console. Reproduces
+    LilyGo_AMOLED::begin()''s autodetect: probe SDA=1/SCL=2 for AXP2101, then
+    SDA=3/SCL=2 for CST816 and PCF85063, then SDA=6/SCL=7 for SY6970, stopping
+    at the first hit. Backup taken and verified first; board restored after.'
+  result: verified
+  note: 'SDA=1/SCL=2 silent. SDA=3/SCL=2 answered 0x15, 0x51, 0x6b -- touch, RTC
+    and BQ25896 PMU together, which is the Plus and nothing else in the family.
+    SDA=6/SCL=7 never driven. Consequence worth recording: all three conflicting
+    GPIOs resolve to the side the older non-touch repo would have got wrong --
+    GPIO38 is OL_EN (panel power enable) not PIN_LED, GPIO21 is touch INT not a
+    button, and GPIO4''s ADC path is dead code shadowed by the BQ25896. The
+    circumstantial evidence recorded earlier pointed at the non-touch board and
+    was wrong on all three.'
 - date: '2026-09-05'
   tested: board.read_baud_max
   method: Full 16MB esptool read-flash via the backup baud ladder.
