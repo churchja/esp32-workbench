@@ -144,12 +144,22 @@ every earlier board was a different model. They landed on separate profiles, so
 board A kept its backup manifest and verified read ceiling instead of being
 silently overwritten.
 
-**The two S3 rows share a chip and diverge on silicon**, which is a different
-lesson. The devkit has 8MB PSRAM and four partitions; the M5 Stamp has flash
-embedded in the module, no PSRAM, and six partitions with 3.19MB OTA slots.
-`set-target` is `esp32s3` for both, so a build config valid on one can
-mismanage memory on the other. `chip_features` is read from eFuse rather than
-inferred from a part number, which is what catches it.
+**The three S3 rows carry two further lessons**, and they are different in kind.
+
+*Silicon can differ under one `set-target`.* The devkit has 8MB PSRAM; neither
+Stamp has any. `set-target` is `esp32s3` for all three, so a build config valid
+on one can mismanage memory on another. `chip_features` is read from eFuse
+rather than inferred from a part number, which is what catches it. Even the
+flash vendor differs — GigaDevice on the Stamp S3, XMC on the Stamp S3A — both
+described as "8MB embedded".
+
+*Partition layout is a **firmware** decision recorded in hardware.* The Stamp S3
+carries M5Stack's stock dual 3.19MB OTA slots plus 1.5MB SPIFFS. The Stamp S3A,
+running Bruce, has a **single 4.875MB app** and **3MB SPIFFS** — it spent the OTA
+partner slot to buy a larger image and filesystem. Coherent for a tool storing
+captures and scripts, but it means no A/B rollback, so reflashing must go
+through the ROM bootloader. Reading the layout tells you what a board is *for*,
+not merely what it is.
 
 Three mechanisms had to cooperate for the QT Py pair, each verified in passing:
 the USB-serial fallback keyed B's first (failed) probe correctly and its derived
