@@ -42,6 +42,7 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <driver/usb_serial_jtag.h>
 
 #include "esp_lcd_panel_rm67162.h"
 #include "sdkconfig.h"
@@ -282,6 +283,88 @@ static lv_display_t *display_bringup(void)
 	return disp;
 }
 
+/* --------------------------------------------------------- serial console */
+
+/* A one-key command channel over USB-Serial-JTAG.
+ *
+ * WHY THE DRIVER AND NOT stdin. The PRIMARY console here is UART0 on GPIO43/44
+ * (CONFIG_ESP_CONSOLE_UART_DEFAULT), which is not on the USB cable; what the
+ * host actually sees is the SECONDARY console
+ * (CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG), and that direction is output
+ * only. So stdin reads a UART nobody is connected to. Reading the USB
+ * peripheral directly is the only way to receive a keystroke over the one
+ * cable that is plugged in.
+ *
+ * WHY IT IS POLLED FROM THE RENDER LOOP rather than given its own task:
+ * screen_dump() calls lv_snapshot_take_to_draw_buf(), which walks and renders
+ * the LVGL object tree. LVGL is not thread-safe. Polling here means the dump
+ * runs on the task that owns LVGL by construction, with no flag, no mutex and
+ * no chance of a future edit getting it wrong.
+ *
+ * The driver shares the peripheral with the secondary console's output path.
+ * Nothing in the ESP-IDF headers or docs forbids that, but "nothing forbids
+ * it" is not evidence -- it was verified on hardware that log output still
+ * arrives after the driver is installed. If that ever regresses, the symptom
+ * is a silent board, and the fix is to drop this and use the button. */
+static bool console_ready;
+
+static void console_init(void)
+{
+	usb_serial_jtag_driver_config_t cfg =
+		USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+	esp_err_t e = usb_serial_jtag_driver_install(&cfg);
+	if (e != ESP_OK) {
+		/* Not fatal. The button still takes screenshots; this is a
+		 * convenience so a capture does not need a hand on the board. */
+		ESP_LOGW(TAG, "console input unavailable: %s", esp_err_to_name(e));
+		return;
+	}
+	console_ready = true;
+	ESP_LOGI(TAG, "serial console ready -- s=snapshot n=next r=refresh ?=help");
+}
+
+static void screen_dump(void);          /* defined below */
+
+static void console_help(void)
+{
+	printf("\ncommands: s = screen dump   n = next panel   "
+	       "r = force refresh   ? = this help\n");
+}
+
+/* Non-blocking. Returns immediately when nothing has been typed, which is the
+ * normal case on every one of the ~20-50 loop iterations per second. */
+static void console_poll(void)
+{
+	if (!console_ready)
+		return;
+
+	uint8_t buf[16];
+	int n = usb_serial_jtag_read_bytes(buf, sizeof(buf), 0);
+	for (int i = 0; i < n; i++) {
+		switch (buf[i]) {
+		case 's':
+		case 'S':
+			screen_dump();
+			break;
+		case 'n':
+		case 'N':
+			wx_ui_next_panel();
+			break;
+		case 'r':
+		case 'R':
+			wx_ui_status("REFRESHING...");
+			force_refresh = true;
+			break;
+		case '?':
+		case 'h':
+			console_help();
+			break;
+		default:
+			break;          /* newlines and stray bytes */
+		}
+	}
+}
+
 /* ------------------------------------------------------------- screenshot */
 
 /* Dump the live screen over serial as base64 RGB565.
@@ -334,9 +417,13 @@ static void screen_dump(void)
 	lv_draw_buf_t *db = &buf;
 	const uint8_t *d = db->data;
 	uint32_t n = nbytes;
-	printf("\nSNAP_BEGIN w=%lu h=%lu stride=%lu bytes=%lu\n",
+	/* The panel index travels WITH the image. The host tool used to infer it
+	 * from pixels and got it wrong -- another panel's text satisfied the
+	 * "big 7-segment digits" test. The firmware knows; it should say. */
+	printf("\nSNAP_BEGIN w=%lu h=%lu stride=%lu bytes=%lu panel=%d\n",
 	       (unsigned long)W, (unsigned long)H,
-	       (unsigned long)stride, (unsigned long)n);
+	       (unsigned long)stride, (unsigned long)n,
+	       wx_ui_current_panel());
 
 	/* 57 input bytes -> 76 output chars per line. Chunked so nothing large
 	 * is allocated a second time. */
@@ -542,6 +629,7 @@ void app_main(void)
 	lv_display_t *disp = display_bringup();
 	wx_ui_init(disp);
 	wx_ui_set_panel_bright_cb(panel_set_brightness);
+	console_init();
 	/* esp_lcd_panel_disp_on_off() set 0xD0 during bring-up; go to full so the
 	 * splash and the setup portal are at the same brightness as the running
 	 * app rather than dimmer than it. */
@@ -640,6 +728,8 @@ void app_main(void)
 			last_tick_us = now_us;
 			wx_ui_tick();
 		}
+
+		console_poll();
 
 		switch (wx_btn_poll()) {
 		case WX_BTN_SHORT:

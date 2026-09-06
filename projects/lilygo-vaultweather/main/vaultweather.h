@@ -348,6 +348,14 @@ void wx_ui_status(const char *msg);
 
 void wx_ui_next_panel(void);
 
+/* Which of the rotating panels is showing, 0-based.
+ *
+ * Exists so a screen capture can SAY which panel it caught. The host tool
+ * first guessed from pixels -- "is there a big 7-segment temperature on the
+ * left" -- and the text rows of another panel tripped it. The firmware knows
+ * the answer exactly; there is no reason to infer it. */
+int wx_ui_current_panel(void);
+
 /* Force the clock to repaint on the next tick.
  *
  * The clock redraws only when the minute NUMBER changes, which is right for

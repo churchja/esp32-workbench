@@ -44,4 +44,5 @@ idf_component_register(
 		esp_lcd_panel_rm67162
 		driver
 		esp_timer
+		esp_driver_usb_serial_jtag
 )

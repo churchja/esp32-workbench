@@ -1978,6 +1978,11 @@ void wx_ui_invalidate_clock(void)
 	last_min = -1;
 }
 
+int wx_ui_current_panel(void)
+{
+	return cur_pane;
+}
+
 void wx_ui_next_panel(void)
 {
 	if (!ui_ready || mode != MODE_MAIN)
