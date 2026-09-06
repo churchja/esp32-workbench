@@ -2,6 +2,7 @@ set(srcs
 	"main.c"
 	"pipboy_ui.c"
 	"nuke_anim.c"
+	"nuke_frames.c"
 )
 
 idf_component_register(
