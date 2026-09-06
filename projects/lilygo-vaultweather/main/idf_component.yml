@@ -1,0 +1,11 @@
+dependencies:
+  # Driver is vendored in components/ so the LilyGO SPI init can be added;
+  # see that component's Kconfig for why. Upstream: crosser/esp-lcd-panel-rm67162 v0.3.0
+  idf: '>=5.0'
+  lvgl/lvgl: '>=9.3.0'
+
+  # cJSON is NOT bundled with ESP-IDF 6.0. The built-in `json` component was
+  # removed in the 6.0 release (see docs/en/migration-guides/release-6.x/6.0/
+  # protocols.rst in the IDF tree); code written against 5.x that does
+  # `REQUIRES json` simply fails to find it. It comes from the registry now.
+  espressif/cjson: '^1.7.19'

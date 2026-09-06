@@ -1,0 +1,18 @@
+# Custom partition table for lilygo-vaultweather.
+#
+# WHY THIS EXISTS
+# The default single-factory-app table gives the app 0x100000 (1MB). The
+# Pip-Boy app fits that at 631KB, but this one links the Wi-Fi stack, lwIP,
+# mbedTLS with a certificate bundle, esp_http_client, esp_http_server and
+# cJSON on top of LVGL -- comfortably past 1MB. 3MB leaves room to grow
+# without ever revisiting this file; the board has 16MB of flash, so the
+# spare space costs nothing.
+#
+# Offsets are not free choices: the bootloader lives at 0x0 and the partition
+# table itself at 0x8000, and ESP-IDF requires app partitions to start on a
+# 64KB boundary. 0x10000 is the first such boundary after the table.
+#
+# Name,     Type, SubType, Offset,   Size,      Flags
+nvs,        data, nvs,     0x9000,   0x6000,
+phy_init,   data, phy,     0xf000,   0x1000,
+factory,    app,  factory, 0x10000,  0x300000,

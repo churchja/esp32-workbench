@@ -1,0 +1,104 @@
+# lilygo-vaultweather -- LilyGo T-Display-S3 AMOLED Plus (BOARD_AMOLED_191_SPI)
+#
+# The display block is inherited VERBATIM from projects/lilygo-pipboy, where it
+# was established by probing and is the only combination that drives this panel.
+# Do not "clean it up" -- six config permutations failed before this one.
+
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_LCD_ENABLE_DEBUG_LOG=y
+CONFIG_ETH_USE_SPI_ETHERNET=n
+CONFIG_WS_TRANSPORT=n
+CONFIG_LV_BUILD_EXAMPLES=n
+
+# --- Partition table ---------------------------------------------------------
+# 1MB is not enough once Wi-Fi + mbedTLS + two HTTP stacks + cJSON link in on
+# top of LVGL. See partitions.csv for the arithmetic.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# --- Bluetooth: OFF ----------------------------------------------------------
+# The Pip-Boy project left BT enabled from the vendor example and never used it.
+# This app needs Wi-Fi only, and BT costs both flash and internal DRAM that the
+# Wi-Fi/TLS path actually wants. Turning it off is free here because nothing
+# references it.
+CONFIG_BT_ENABLED=n
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=n
+
+# --- Display (verified; inherited from lilygo-pipboy) ------------------------
+# The Plus is RM67162 over REGULAR SPI with D2/D3 unpopulated, per
+# LilyGo_AMOLED.h's RM67162_AMOLED_SPI config -- not the QSPI sibling.
+CONFIG_HWE_DISPLAY_SPI_SPI=y
+CONFIG_HWE_DISPLAY_SPI_FREQUENCY=40000000
+CONFIG_RM67162_USE_LILYGO_SPI_INIT=y
+# Three sources agree GPIO38 panel power is active HIGH; the inverted probe
+# changed nothing.
+CONFIG_HWE_DISPLAY_PWR_ON_LEVEL=1
+# The Plus does not wire D2/D3 to the display; leaving them at the QSPI
+# defaults (48, 5) claims two pins the panel is not on and forces a 4-lane bus.
+CONFIG_HWE_DISPLAY_SPI_D2=-1
+CONFIG_HWE_DISPLAY_SPI_D3=-1
+# GPIO7 is DC, not a data lane. This is a TRANSPORT change and is the reason
+# six earlier config permutations all failed.
+CONFIG_RM67162_USE_DC_PIN=y
+
+# --- Fonts -------------------------------------------------------------------
+# unscii is a public-domain 8x8/8x16 bitmap font; LVGL's own Kconfig calls it
+# "Perfect monospace font". Montserrat is proportional and reads wrong for a
+# terminal. unscii_16 is the body face, unscii_8 the chrome.
+CONFIG_LV_FONT_UNSCII_8=y
+CONFIG_LV_FONT_UNSCII_16=y
+CONFIG_LV_FONT_DEFAULT_UNSCII_16=y
+CONFIG_LV_FONT_MONTSERRAT_14=n
+CONFIG_LV_FONT_DEFAULT_MONTSERRAT_28=n
+
+# --- Task sizing and watchdog ------------------------------------------------
+# LVGL object creation is stack-hungry and the 3584-byte default overflowed
+# task `main` in the Pip-Boy app the moment the UI grew past a handful of
+# objects. This app builds more objects than that one did, plus it runs
+# networking from the same task at startup.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+# A full-screen redraw on this panel is 536*240*2 = 257,280 bytes, and 40MHz
+# SPI needs ~51ms to move it. The render task therefore spends most of its time
+# waiting on DMA and starves the CPU0 idle task even though nothing is stuck.
+# Rendering IS this app's job, so the idle check on CPU0 is turned off rather
+# than pretending the workload is lighter than it is. CPU1's check stays on, so
+# a genuine hang is still caught.
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+
+# --- HTTPS -------------------------------------------------------------------
+# REQUIRED, and this is a change from lilygo-pipboy, which set it to =n.
+# Weathercloud is HTTPS-only: http://data.weathercloud.net redirects 301 to
+# https. Open-Meteo alone would not need this (plain HTTP works there, verified
+# live), but the PWS does, so TLS links in regardless.
+CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS=y
+
+# The x509 bundle supplies root CAs so no certificate has to be pinned in the
+# firmware. Weathercloud's chain is depth 3 under "Sectigo Public Server
+# Authentication Root R46"; Open-Meteo's roots are equally mainstream. CMN
+# carries the common roots at 15,905 bytes against FULL's 66,699 -- FULL buys
+# obscure CAs neither host uses.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN=y
+
+# mbedTLS allocates its in/out content buffers for the whole session lifetime
+# by default: ~42KB of INTERNAL DRAM, which is the scarce pool (~512KB total,
+# shared with Wi-Fi and lwIP buffers and every task stack). The dynamic-buffer
+# options allocate on demand and free the CA chain and config data once the
+# handshake is done, taking it to ~22KB. PSRAM does not help here -- see
+# SPIRAM_MALLOC_ALWAYSINTERNAL below.
+CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
+CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA=y
+CONFIG_MBEDTLS_DYNAMIC_FREE_CA_CERT=y
+
+# --- Screen capture -------------------------------------------------------
+# lv_snapshot_take() renders any object tree into a buffer. This app is
+# layout-heavy on a panel nobody can screenshot by other means, and a reported
+# "something is drawn behind the sync text" is not diagnosable by re-reading
+# the layout arithmetic -- the arithmetic looked correct while the artefact was
+# real. Costs a few KB of flash and nothing at runtime unless invoked.
+CONFIG_LV_USE_SNAPSHOT=y
