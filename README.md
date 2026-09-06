@@ -68,12 +68,13 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 446 assertions across 9 files; no hardware needed |
+| `tools/test_*.py` | 447 assertions across 9 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
 | `templates/idf-usb-console/` | Sibling for **USB-OTG parts (S2)**, where a console needs TinyUSB |
 | `templates/pio-base/` | PlatformIO/Arduino sibling, for the Arduino display-library ecosystem |
+| `projects/` | Applications built on top of the bench, one directory each. Referenced throughout this file and previously not listed here |
 | `backups/` | Flash images (gitignored) + manifests (tracked) |
 | `docs/` | Design rationale, recommendations, and the build log |
 | `.claude/skills/esp32-workbench/` | The skill and its references |
