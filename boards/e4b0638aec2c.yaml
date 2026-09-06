@@ -195,6 +195,23 @@ pinmap:
     value: 17
     provenance: verified
     note: Active HIGH per the driver example's RST_ACTIVE_LEVEL default.
+  touch_sda:
+    value: 3
+    provenance: verified
+    note: 'CST816S touch, PCF85063 RTC and BQ25896 PMU all sit on this bus. Probed
+      on this unit 2026-09-06 with the IDF 6.0 i2c_master driver at 100kHz: 0x15,
+      0x51 and 0x6B all ACK, and 0x15 answers register reads.'
+  touch_scl:
+    value: 2
+    provenance: verified
+    note: 'Same bus as touch_sda. See the 2026-09-06 verification_log entry.'
+  touch_int:
+    value: 21
+    provenance: verified
+    note: 'CST816S interrupt, NOT a button -- the older non-touch repo calls GPIO21
+      a button and is wrong for this variant. Measured as a short PULSE, not a level
+      held for the duration of a touch: low on 4 of 200 samples while 34 touch events
+      were read. Usable as a falling-edge wake source; coordinates still need a poll.'
   lcd_dc:
     value: 7
     provenance: verified
@@ -539,6 +556,27 @@ board:
       for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-06'
+  tested: [pinmap.touch_sda, pinmap.touch_scl, pinmap.touch_int]
+  method: 'Ran projects/lilygo-vaultweather''s ''t'' console command, which brings up
+    an IDF 6.0 i2c_master bus on SDA=3/SCL=2 at 100kHz, scans 0x08..0x77, reads the
+    CST816 identity registers (0xA7 chip, 0xA8 vendor, 0xA9 firmware), then polls
+    registers 0x01..0x06 at 20Hz for 10s while the screen was tapped by hand. GPIO21
+    sampled as an input in the same loop.'
+  result: verified
+  note: 'Scan returned 0x15, 0x51, 0x6B -- reproducing the 2026-09-04 variant scan
+    exactly. NEW, and beyond what that scan could establish: the part identifies as
+    chip id 0xB5 = CST816S, vendor 0x22, firmware 0x03, so the REGISTER interface
+    works and not merely address decoding. 34 touch events were read with plausible
+    coordinates (x 220..243, y 87..116 for repeated taps in one spot). The documented
+    risk did not materialise -- CST816 parts sleep aggressively and usually need RST
+    pulsed, no touch-reset pin is known for this board, and it answered anyway;
+    GPIO17 (lcd_rst) is the likely shared line but that is NOT tested. COORDINATE
+    FRAME IS NOT RESOLVED: x brushing 240 while y stays low suggests the controller
+    reports in the panel''s native 240x536 portrait frame, which is rotated 90
+    degrees from the 536x240 the app draws in. A tap-to-wake feature does not care;
+    anything that maps a touch to a UI element will have to establish the transform
+    by tapping known corners.'
 - date: '2026-09-05'
   tested:
     - pinmap.button_1
