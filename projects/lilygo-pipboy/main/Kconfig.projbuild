@@ -1,0 +1,95 @@
+# Kconfig file for Lilligo T3-AMOLED module demo
+
+menu "Hardware Environment (PINS, screen, etc.)"
+
+	choice
+		prompt "SPI Host for the display controller"
+		default HWE_DISPLAY_SPI2_HOST
+		config HWE_DISPLAY_SPI1_HOST
+			bool "SPI1_HOST"
+		config HWE_DISPLAY_SPI2_HOST
+			bool "SPI2_HOST"
+	endchoice
+
+	choice
+		prompt "SPI bus width"
+		default HWE_DISPLAY_SPI_QSPI
+		config HWE_DISPLAY_SPI_SPI
+			bool "Regular SPI"
+		config HWE_DISPLAY_SPI_QSPI
+			bool "Quad SPI"
+		config HWE_DISPLAY_SPI_OSPI
+			bool "Octal SPI"
+	endchoice
+
+	config HWE_DISPLAY_SPI_SCK
+		int "SCK (Clock) pin number of SPI bus"
+		default 47
+
+	config HWE_DISPLAY_SPI_D0
+		int "D0 (a.k.a. MOSI) pin number of SPI bus"
+		default 18
+
+	config HWE_DISPLAY_SPI_D1
+		int "D1 (a.k.a. DC) pin number of SPI bus"
+		default 7
+
+	config HWE_DISPLAY_SPI_D2
+		int "D2 pin number of SPI bus"
+		default 48 
+
+	config HWE_DISPLAY_SPI_D3
+		int "D3 pin number of SPI bus"
+		default 5
+
+	config HWE_DISPLAY_SPI_FREQUENCY
+		int "SPI Frequency for the Display Controller"
+		default 75000000
+
+	choice
+		prompt "SPI Mode0 or Mode3"
+		default HWE_DISPLAY_SPI_MODE0
+		config HWE_DISPLAY_SPI_MODE0
+			bool "Mode 0"
+		config HWE_DISPLAY_SPI_MODE3
+			bool "Mode 3"
+	endchoice
+
+	config HWE_DISPLAY_SPI_CS
+		int "CS (Chip Select) pin number for display controller"
+		default 6
+
+	config HWE_DISPLAY_RST
+		int "RST (Reset device) pin number for display controller"
+		default 17
+
+	choice
+		prompt "RST level when device is active"
+		default HWE_DISPLAY_RST_ACTIVE_LEVEL_HIGH
+		config HWE_DISPLAY_RST_ACTIVE_LEVEL_HIGH
+			bool "Device is active when RST pin is HIGH"
+		config HWE_DISPLAY_RST_ACTIVE_LEVEL_LOW
+			bool "Device is active when RST pin is LOW"
+	endchoice
+
+	config HWE_DISPLAY_WIDTH
+		int "Display width (non-rotated)"
+		default 240
+
+	config HWE_DISPLAY_HEIGHT
+		int "Display height (non-rotated)"
+		default 536
+
+	config HWE_DISPLAY_PWR
+		int "Display panel power pin number"
+		default 38
+
+	config HWE_DISPLAY_PWR_ON_LEVEL
+		int "Which GPIO level is 'display on' (0 or 1)"
+		default 1
+
+	config HWE_BUTTON_1
+		int "Button 1 GPIO pin number"
+		default 0
+
+endmenu

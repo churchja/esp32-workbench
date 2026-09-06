@@ -1,0 +1,7 @@
+dependencies:
+  # The stock example depends on the driver by local path (../../../), which
+  # only resolves inside the driver's own repo. Pull it from the registry.
+  # Driver is vendored in components/ so the LilyGO SPI init can be added;
+  # see that component's Kconfig for why. Upstream: crosser/esp-lcd-panel-rm67162 v0.3.0
+  idf: '>=5.0'
+  lvgl/lvgl: '>=9.3.0'

@@ -1,0 +1,37 @@
+menu "RM67162 panel driver"
+
+config RM67162_USE_LILYGO_SPI_INIT
+    bool "Use LilyGO's rm67162_spi_cmd init sequence"
+    default n
+    help
+      The upstream driver sends a minimal init -- SLPOUT, MADCTL, COLMOD,
+      WRDISBV -- which brings up the QSPI-wired LilyGO and Waveshare boards it
+      was tested on.
+
+      The LilyGO T-Display-S3 AMOLED **Plus** is a different variant: its panel
+      is wired for regular SPI and LilyGO's own library drives it with a
+      SEPARATE 18-command sequence (rm67162_spi_cmd) rather than the 12-command
+      one used for the QSPI boards. Bus width and init sequence are independent,
+      so selecting "Regular SPI" alone leaves the panel dark -- the commands
+      being sent are the wrong ones.
+
+      Enable this to send LilyGO's SPI sequence instead. Sequence and its
+      semantics are from LilyGo-AMOLED-Series (MIT, Lewis He / Shenzhen Xin Yuan
+      Electronic Technology).
+
+config RM67162_USE_DC_PIN
+    bool "Drive a DC pin (conventional 4-wire SPI)"
+    default n
+    help
+      The upstream transport embeds control bytes in a 32-bit command word and
+      uses NO DC pin -- correct for the QSPI-wired boards it was written for.
+
+      The LilyGO Plus is wired for conventional 4-wire SPI: LilyGO's own
+      writeCommand() pulls display.d1 (GPIO7) LOW for the command byte and HIGH
+      for data. That is a TRANSPORT difference, not an init or bus-width one, so
+      no amount of pin or sequence configuration bridges it.
+
+      Enable this to send plain 8-bit commands and let esp_lcd toggle DC. Set
+      the panel IO's dc_gpio_num to GPIO7 and lcd_cmd_bits to 8 to match.
+
+endmenu

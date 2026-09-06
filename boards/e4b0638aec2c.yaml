@@ -224,15 +224,22 @@ pinmap:
       pin PIN_LED. Driving it as an indicator gates the display rail.'
   lcd_te:
     value: 9
-    provenance: unverified
+    provenance: verified
     note: 'Tearing-effect line. Present ONLY in LilyGo_AMOLED.h''s
       RM67162_AMOLED_SPI block -- absent from the older factory example and from
       the crosser driver example, so this pin was invisible until the Plus''s own
       config was read.'
   button_1:
-    value: 0
-    provenance: unverified
-    note: BOOT button. Consistent with the ESP32-S3 strapping pin.
+    value: 21
+    provenance: verified
+    note: >-
+      GPIO21, measured. WAS RECORDED AS GPIO0 and that was WRONG. Three sources
+      agreed on GPIO0 and it was consistent with the ESP32-S3 BOOT strapping
+      pin, which is exactly why it looked safe -- but all three describe the
+      non-Plus sibling, the same failure that made the display transport take
+      seven attempts. A 20-pin scan under internal pull-up found GPIO21 goes
+      low on press and GPIO0 never moves. The wrong value is kept here because
+      the reasoning was reasonable and still wrong.
 display:
   width:
     value: 240
@@ -527,6 +534,35 @@ board:
       for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-05'
+  tested:
+    - pinmap.button_1
+  method: >-
+    projects/lilygo-pipboy scans 20 safe GPIOs as inputs with internal pull-ups
+    at 50ms and logs any that go low. Display pins (47,18,6,17,7,38,9), octal
+    PSRAM (33-37), UART0 (43,44), strapping (45,46) and USB (19,20) excluded.
+    GPIO5 and GPIO48 WERE included: they are lcd_d3/lcd_d2 in the QSPI pinout,
+    but the Plus leaves them unwired, so they are free pins on this board.
+  result: verified
+  note: >-
+    GPIO21 goes low on press; GPIO0 does not move. A first pass scanning only
+    GPIO0 produced nothing, which was ambiguous between "wrong pin" and "500ms
+    poll too slow" -- scanning every candidate at 50ms answered both at once.
+    Confirms the profile was right to hold button_1 at unverified.
+- date: '2026-09-05'
+  tested:
+    - pinmap.lcd_te
+  method: >-
+    GPIO9 configured as input with a rising-edge ISR; edges counted over a 2s
+    window while the panel was actively driven by LVGL.
+  result: verified
+  note: >-
+    197 edges/second, repeatably. The PIN is confirmed driven by the panel: an
+    unconnected input with no pull does not produce 197 clean rising edges a
+    second. The RATE is NOT explained and is deliberately not recorded as a
+    frame rate -- 197Hz is not 60Hz, and the candidates (per-line rather than
+    per-frame TE, double-counted transitions, or ISR latency artefacts) have
+    not been distinguished. Open item, see research_queue.
 - date: '2026-09-05'
   tested: display.orientation
   method: 'Read the LVGL scroll text that runs after the solid fills -- the first

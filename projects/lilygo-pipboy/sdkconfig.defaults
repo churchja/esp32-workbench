@@ -1,0 +1,53 @@
+    # This file was generated using idf.py save-defconfig. It can be edited manually.
+    # Espressif IoT Development Framework (ESP-IDF) 6.0.0 Project Minimal Configuration
+    #
+    # default:
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_BT_ENABLED=y
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=n
+CONFIG_ETH_USE_SPI_ETHERNET=n
+CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS=n
+CONFIG_LCD_ENABLE_DEBUG_LOG=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_WS_TRANSPORT=n
+CONFIG_LV_FONT_MONTSERRAT_14=n
+CONFIG_LV_FONT_DEFAULT_MONTSERRAT_28=y
+CONFIG_LV_BUILD_EXAMPLES=n
+
+# --- LilyGo T-Display-S3 AMOLED **Plus** (BOARD_AMOLED_191_SPI) ---
+# The example ships QSPI defaults, which target the NON-TOUCH sibling. This
+# board is the Plus: RM67162 over regular SPI with d2/d3 unpopulated, per
+# LilyGo_AMOLED.h's RM67162_AMOLED_SPI config. Pins are otherwise identical.
+CONFIG_HWE_DISPLAY_SPI_SPI=y
+CONFIG_HWE_DISPLAY_SPI_FREQUENCY=40000000
+CONFIG_RM67162_USE_LILYGO_SPI_INIT=y
+
+# Probe: invert the panel power pin. Three sources agree GPIO38 is active HIGH,
+# but all three describe the NON-TOUCH board -- the exact assumption that has
+# failed repeatedly on this Plus. One variable, one build.
+# Reverted to 1: three sources agree active-high, and the inverted probe
+# changed nothing. Testing D2/D3 alone.
+CONFIG_HWE_DISPLAY_PWR_ON_LEVEL=1
+
+# The Plus does not wire D2/D3 to the display: LilyGo_AMOLED.h's
+# RM67162_AMOLED_SPI sets both to -1. Leaving them at the QSPI defaults (48, 5)
+# claims two pins the panel is not on and forces a 4-lane bus.
+CONFIG_HWE_DISPLAY_SPI_D2=-1
+CONFIG_HWE_DISPLAY_SPI_D3=-1
+
+# The Plus is conventional 4-wire SPI: GPIO7 is DC, not a data lane.
+# This is a TRANSPORT change -- the reason six config permutations all failed.
+CONFIG_RM67162_USE_DC_PIN=y
+
+# --- Pip-Boy UI ---
+# unscii is a public-domain 8x8/8x16 bitmap font; LVGL's own Kconfig calls it
+# "Perfect monospace font". Montserrat is a proportional modern face and reads
+# wrong for a terminal. unscii_16 is the body face, unscii_8 the chrome.
+CONFIG_LV_FONT_UNSCII_8=y
+CONFIG_LV_FONT_UNSCII_16=y
+CONFIG_LV_FONT_DEFAULT_UNSCII_16=y
+CONFIG_LV_FONT_DEFAULT_MONTSERRAT_28=n
