@@ -369,12 +369,19 @@ void wx_ui_show_portal(const char *ssid, const char *url);
 /* Panel brightness, 0-255. main drives this from sunrise/sunset.
  *
  * PREFER REAL PANEL BRIGHTNESS. The RM67162 has a WRDISBV command (0x51) that
- * actually reduces emission. The fallback here composites a black overlay,
- * which on an AMOLED is the wrong mechanism in every respect: every pixel
- * stays lit, the image only washes toward grey, it costs a full-screen alpha
- * blend on every redraw of an already DMA-bound panel, and it does nothing for
- * power or burn-in. main owns the panel IO handle, so it registers the real
- * one here and the overlay is only used if nothing was registered. */
+ * actually reduces emission. The fallback composites a black overlay, which on
+ * an AMOLED is the wrong mechanism: it washes the image toward grey rather than
+ * dimming it, and costs a full-screen alpha blend on every redraw of an already
+ * DMA-bound panel.
+ *
+ * An earlier version of this comment also claimed the overlay leaves every
+ * pixel lit and does nothing for power. That is NOT measured and is probably
+ * false -- compositing black reduces subpixel drive, which is what an AMOLED
+ * draws current for. The measured, sufficient reasons are the two above.
+ *
+ * main owns the panel IO handle, so it registers the real path here; the
+ * overlay runs only if nothing was registered, which in this build never
+ * happens (see main.c, which registers immediately after wx_ui_init). */
 typedef void (*wx_panel_bright_fn)(uint8_t level);
 void wx_ui_set_panel_bright_cb(wx_panel_bright_fn fn);
 
@@ -415,6 +422,19 @@ typedef enum {
 	WX_BTN_SNAP,       /* 3s -- dump the screen over serial */
 	WX_BTN_HOLD,       /* 5s -- erase config and re-enter the setup portal */
 } wx_btn_t;
+
+/* Tap-to-wake. Brings up the I2C bus and arms a FALLING-EDGE interrupt on the
+ * CST816S INT line.
+ *
+ * Edge, not level, and measured rather than assumed: while 34 touch events were
+ * read on this unit, GPIO21 sampled low on only 4 of 200 samples at 20Hz. The
+ * line pulses; it is not held low for the duration of a touch. Code written
+ * against the usual "INT is low while touched" would miss most taps and look
+ * like flaky hardware. */
+esp_err_t wx_touch_init(void);
+
+/* True once per tap, then false until the next one. */
+bool wx_touch_take_tap(void);
 
 /* INVESTIGATION ONLY -- probes the I2C bus and the CST816 touch controller and
  * prints what it finds. Not a driver, and nothing calls it during normal

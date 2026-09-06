@@ -109,6 +109,25 @@ static volatile bool     force_refresh;   /* set by a long button press */
 static esp_lcd_panel_handle_t panel;
 static esp_lcd_panel_io_handle_t panel_io;
 
+/* Sunrise/sunset drive the schedule, and they arrive with the forecast -- but
+ * brightness has to be re-evaluated every SECOND now that a 45s wake timer
+ * exists. Previously it was computed only inside the "new data arrived" branch,
+ * which fires every 10 minutes; a wake timer evaluated at that rate would hold
+ * full brightness for up to 10 minutes, or miss the window entirely. Copying
+ * the two timestamps out lets the 1Hz tick decide without touching the mutex. */
+static time_t sched_sunrise;
+static time_t sched_sunset;
+
+/* MONOTONIC, not wall-clock. SNTP resyncs hourly and steps rather than slews
+ * (ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE leaves smooth_sync false), and the
+ * RTC runs off the internal RC oscillator, so a step of minutes is reachable
+ * after a long outage. A wake deadline in wall-clock time would be extended or
+ * cut by that step; esp_timer_get_time() cannot be rewritten by a network
+ * service. */
+static int64_t wake_until_us;
+
+static uint8_t cur_bright = 0xFF;
+
 /* Run LVGL and the 1Hz UI tick for roughly `ms` milliseconds.
  *
  * Every place that used to spin `lv_task_handler()` in a bare loop skipped
@@ -529,8 +548,17 @@ static void wx_fetch_task(void *arg)
 			if (wx_fetch_forecast(&cfg, st.day, WX_FORECAST_DAYS,
 			                      &sr, &ss) == ESP_OK) {
 				st.have_forecast = true;
-				st.sunrise = sr;
-				st.sunset  = ss;
+				/* Only overwrite when the parse actually produced
+				 * a time. wx_fetch_forecast() reports ESP_OK on
+				 * any day parsing, and iso_to_epoch() leaves its
+				 * output untouched when the field is null -- so
+				 * an unconditional assignment stores zeros, which
+				 * brightness_for() reads as "no sun data" and
+				 * pins the panel at full through the night. That
+				 * then gets persisted to NVS and survives a
+				 * reboot. */
+				if (sr) st.sunrise = sr;
+				if (ss) st.sunset  = ss;
 				st.last_ok = time(NULL);
 				next_forecast = st.last_ok + FORECAST_PERIOD_S;
 				progressed    = true;
@@ -570,11 +598,30 @@ static void wx_fetch_task(void *arg)
 
 /* --------------------------------------------------------- brightness */
 
+/* HARD FLOOR. The panel must never go black and must never be switched off --
+ * this is a clock, and a clock you cannot read is not one. Enforced inside
+ * panel_set_brightness() rather than trusted to every caller, so a future edit
+ * that passes 0 dims to the floor instead of blanking the display.
+ *
+ * esp_lcd_panel_disp_on_off(panel, false) is likewise never called anywhere in
+ * this app; the only call is the `true` during bring-up. */
+#define BRIGHT_FLOOR  25
+
+/* How long a tap holds full brightness. */
+#define WAKE_SECONDS  45
+
 /* RM67162 WRDISBV -- write display brightness, 0x00..0xFF.
  *
- * The vendored driver's disp_on_off leaves the panel at 0xD0 (208/255, 82%)
- * and nothing ever raises it, so nearly a quarter of the panel's output was
- * simply unused. This drives it directly.
+ * The vendored driver leaves the panel at 175/255 (69%) and nothing ever
+ * raises it, so nearly a third of the panel's output was unused. This drives
+ * it directly.
+ *
+ * CORRECTION, because the first version of this comment was wrong and the
+ * number is worth getting right: the 0xD0 (208) that panel_rm67162_init()
+ * appears to send is DEAD CODE on this board. CONFIG_RM67162_USE_LILYGO_SPI_INIT
+ * is set, so init returns early into LilyGO's own table, which sends
+ * {0x51, LILYGO_DEFAULT_BRIGHTNESS} with LILYGO_DEFAULT_BRIGHTNESS = 175.
+ * disp_on_off sends only DISPON/DISPOFF and no brightness at all.
  *
  * This is a REAL brightness change: the AMOLED reduces emission. The UI's
  * fallback path instead composites black over the image, which leaves every
@@ -583,6 +630,9 @@ static void panel_set_brightness(uint8_t level)
 {
 	if (!panel_io)
 		return;
+	/* Never black. See BRIGHT_FLOOR. */
+	if (level < BRIGHT_FLOOR)
+		level = BRIGHT_FLOOR;
 	esp_err_t e = esp_lcd_panel_io_tx_param(panel_io, 0x51,
 	                                        (uint8_t[]){ level }, 1);
 	if (e != ESP_OK)
@@ -595,39 +645,92 @@ static void panel_set_brightness(uint8_t level)
  *
  * Returns 0-255. The floor is deliberately not 0: a clock you cannot read in
  * the dark is not a clock. */
-#define BRIGHT_DAY   255      /* was effectively 208: the driver's 0xD0 default */
-#define BRIGHT_NIGHT  80      /* Panel-life arithmetic: 24/7 is 8,760 h/year
+#define BRIGHT_DAY   255      /* was effectively 175: LILYGO_DEFAULT_BRIGHTNESS,
+                               * which nothing ever raised */
+
+#define BRIGHT_NIGHT  30      /* Panel-life arithmetic: 24/7 is 8,760 h/year
                                * against a typical OLED rating of 10k-50k h to
                                * 50% luminance, and nights are half of it. This
-                               * is still readable across a room -- 80/255 on an
-                               * AMOLED in a dark room is not dim the way 80/255
-                               * on an LCD backlight would be, because the black
-                               * around it is genuinely off.
+                               * is still readable across a dark room: 30/255 on
+                               * an AMOLED is not dim the way 30/255 on an LCD
+                               * backlight would be, because the black around it
+                               * is genuinely off rather than leaking.
                                *
                                * History: 60 THROUGH A BLACK OVERLAY (murky, and
                                * the wrong mechanism entirely -- see
-                               * panel_set_brightness), then 150 as a real
-                               * WRDISBV level, now 80 for longevity. */
+                               * panel_set_brightness), then 150, then 80, and
+                               * now 30 -- which only became reasonable once a
+                               * tap could restore full brightness on demand.
+                               * Still well above BRIGHT_FLOOR and still legible
+                               * across a dark room. */
 
-static uint8_t brightness_for(const wx_state_t *st, time_t now)
+static uint8_t brightness_for(time_t now)
 {
-	if (st->sunrise == 0 || st->sunset == 0)
+	/* A tap outranks the schedule. By day this changes nothing, because the
+	 * scheduled level is already full -- tap-to-wake is a night behaviour
+	 * that costs nothing to leave armed around the clock. */
+	if (wake_until_us && esp_timer_get_time() < wake_until_us)
+		return BRIGHT_DAY;
+
+	if (sched_sunrise == 0 || sched_sunset == 0)
 		return BRIGHT_DAY;            /* no sun data yet */
 
 	struct tm tm_now, tm_rise, tm_set;
 	localtime_r(&now, &tm_now);
-	localtime_r(&st->sunrise, &tm_rise);
-	localtime_r(&st->sunset,  &tm_set);
+	localtime_r(&sched_sunrise, &tm_rise);
+	localtime_r(&sched_sunset,  &tm_set);
 
 	int mins      = tm_now.tm_hour  * 60 + tm_now.tm_min;
 	int rise_mins = tm_rise.tm_hour * 60 + tm_rise.tm_min;
 	int set_mins  = tm_set.tm_hour  * 60 + tm_set.tm_min;
+
+	/* An empty or inverted window means DAY, not night.
+	 *
+	 * This fires on every daylight cold boot in this timezone. The clock
+	 * starts in UTC -- the POSIX TZ only reaches newlib when a forecast
+	 * arrives, and the NVS cache carries no timezone -- so with cached
+	 * sunrise 11:59Z and sunset 00:47Z the test becomes
+	 * `mins >= 719 && mins < 47`, which is false for all 1440 minutes of the
+	 * day. The panel dropped to BRIGHT_NIGHT at noon. Worse, it recovers
+	 * only when a fetch succeeds, so with the router down it stayed dim
+	 * indefinitely with a tap as the only escape.
+	 *
+	 * Failing bright also makes the two "we do not know the time" states
+	 * agree: the sched==0 case above already returns BRIGHT_DAY. */
+	if (set_mins <= rise_mins)
+		return BRIGHT_DAY;
 
 	/* Compare minutes-of-day, not absolute times: sunrise/sunset in the
 	 * payload are for the forecast's days, and by late evening "today's"
 	 * sunset may already be in the past as an absolute timestamp while
 	 * still being the right daily boundary. */
 	return (mins >= rise_mins && mins < set_mins) ? BRIGHT_DAY : BRIGHT_NIGHT;
+}
+
+/* Compute and apply the brightness the current moment calls for.
+ *
+ * Called both on a tap (so the screen responds instantly) and once a second
+ * (so the wake expires on time and the sunset transition is not deferred to
+ * the next fetch, ten minutes away). */
+static void apply_brightness(void)
+{
+	uint8_t b = brightness_for(time(NULL));
+	if (b == cur_bright)
+		return;
+
+	/* Logged because brightness is the one thing a screen capture CANNOT
+	 * show: WRDISBV changes panel emission, not framebuffer contents, so a
+	 * dump looks identical at 30 and at 255. This is the only remote
+	 * evidence the schedule and the wake timer work at all.
+	 *
+	 * Frequency: twice a day for the schedule, and TWICE PER TAP at night
+	 * (up, then down 45s later). A daytime tap logs nothing, because the
+	 * scheduled level is already BRIGHT_DAY and this returns above. */
+	ESP_LOGI(TAG, "brightness %u -> %u%s", cur_bright, b,
+		 (wake_until_us && esp_timer_get_time() < wake_until_us)
+			 ? " (tap)" : "");
+	cur_bright = b;
+	wx_ui_set_brightness(b);
 }
 
 /* --------------------------------------------------------------- main */
@@ -646,9 +749,14 @@ void app_main(void)
 	wx_ui_init(disp);
 	wx_ui_set_panel_bright_cb(panel_set_brightness);
 	console_init();
-	/* esp_lcd_panel_disp_on_off() set 0xD0 during bring-up; go to full so the
-	 * splash and the setup portal are at the same brightness as the running
-	 * app rather than dimmer than it. */
+	/* Not fatal if it fails: the display simply stays on its schedule and the
+	 * button still works. A weather station that refuses to boot because a
+	 * touch controller did not answer would be a worse device. */
+	if (wx_touch_init() != ESP_OK)
+		ESP_LOGW(TAG, "tap-to-wake unavailable; schedule only");
+	/* LilyGO's init table set 175 during bring-up; go to full so the splash
+	 * and the setup portal are at the same brightness as the running app
+	 * rather than dimmer than it. */
 	panel_set_brightness(BRIGHT_DAY);
 	wx_btn_init();
 	wx_ui_status("VAULT-TEC WEATHER STATION");
@@ -705,7 +813,6 @@ void app_main(void)
 	xTaskCreate(wx_fetch_task, "wx_fetch", 8192, NULL, 4, NULL);
 
 	int64_t last_tick_us = 0;
-	uint8_t cur_bright   = 0xFF;
 
 	for (;;) {
 		if (shared_dirty) {
@@ -715,9 +822,8 @@ void app_main(void)
 			shared_dirty = false;
 			xSemaphoreGive(shared_lock);
 			wx_ui_update(&snap);
-
-			uint8_t b = brightness_for(&snap, time(NULL));
-			if (b != cur_bright) { cur_bright = b; wx_ui_set_brightness(b); }
+			sched_sunrise = snap.sunrise;
+			sched_sunset  = snap.sunset;
 		}
 
 		/* Apply any timezone the fetch task asked for. This happens HERE,
@@ -739,10 +845,25 @@ void app_main(void)
 			}
 		}
 
+		/* Consumed AND APPLIED every loop, not every second. Setting the
+		 * deadline here while leaving the panel change to the 1Hz gate
+		 * below left up to 1.05s between a tap and the screen brightening
+		 * -- which on a desk clock reads as broken hardware, and which the
+		 * comment previously claimed had been designed away. */
+		if (wx_touch_take_tap()) {
+			wake_until_us = esp_timer_get_time()
+			              + (int64_t)WAKE_SECONDS * 1000000;
+			apply_brightness();
+		}
+
 		int64_t now_us = esp_timer_get_time();
 		if (now_us - last_tick_us >= 1000000) {
 			last_tick_us = now_us;
 			wx_ui_tick();
+
+			/* Every second, so the 45s wake expires on time and the
+			 * sunset transition is not deferred to the next fetch. */
+			apply_brightness();
 		}
 
 		console_poll();
