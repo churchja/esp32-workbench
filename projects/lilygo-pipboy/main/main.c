@@ -250,8 +250,9 @@ void app_main(void)
 		uint32_t next = lv_task_handler();
 		if (next == LV_NO_TIMER_READY || next > 50)
 			next = 50;
-		if (next < 10)
-			next = 10;
+		if (next < 20)
+			next = 20;   /* raised from 10: a full-screen animation is
+			              * DMA-bound and needs more idle headroom */
 		vTaskDelay(pdMS_TO_TICKS(next));
 	}
 }

@@ -40,6 +40,13 @@
 
 #define TAG "pipboy"
 
+/* nuke_anim.c -- full-screen detonation. Its own file because it is a
+ * self-contained set piece with its own colour language (fire, not phosphor)
+ * and no business knowing about pins or board facts. */
+void nuke_build(lv_obj_t *parent, int32_t w, int32_t h);
+void nuke_fire(const char *caption);
+bool nuke_busy(void);
+
 #define PIN_LCD_TE     9
 #define PIN_LCD_D2     48
 #define PIN_LCD_D3     5
@@ -56,6 +63,15 @@
  * Still excluded: 19/20 are USB D-/D+ and touching them kills the CDC port. */
 static const int cand[] = { 0, 1, 2, 3, 4, 5, 8, 10, 11, 12, 13, 14,
                             15, 16, 21, 39, 40, 41, 42, 48 };
+/* 43/44 were added once and immediately reverted. The reasoning was "the
+ * console is native USB CDC, so UART0 is free" -- and the board's own boot log
+ * says otherwise, in as many words:
+ *
+ *   I (986) cpu_start: GPIO 44 and 43 are used as console UART I/O pins
+ *
+ * Configuring them as pull-up inputs silenced logging the moment this function
+ * ran, so the scan produced no output at all and looked like a hung app. The
+ * evidence needed was printed on every boot, before the change was made. */
 #define N_CAND (sizeof(cand) / sizeof(cand[0]))
 static bool cand_low[N_CAND];
 static bool cand_seen_low[N_CAND];
@@ -126,8 +142,14 @@ static void board_facts(char *out, size_t cap)
  * a visible whole-pixel jump rather than a smooth fade.
  * --------------------------------------------------------------------- */
 static lv_obj_t *door_ring;
+static lv_obj_t *pulse[3];          /* expanding rings for the TE ping */
 static char      type_full[64];
 static size_t    type_pos;
+
+/* The two events get different motion on purpose. A button is mechanical, so
+ * the door turns and latches; TE is a repeating signal, so it pings outward
+ * and repeats. Same overlay slot, different physics. */
+typedef enum { ANIM_DOOR, ANIM_PULSE } anim_kind_t;
 
 static void anim_rotate_cb(void *obj, int32_t v)
 {
@@ -142,6 +164,11 @@ static void anim_arc_cb(void *obj, int32_t v)
 static void anim_scale_cb(void *obj, int32_t v)
 {
 	lv_obj_set_style_transform_scale((lv_obj_t *)obj, v, 0);
+}
+
+static void anim_opa_cb(void *obj, int32_t v)
+{
+	lv_obj_set_style_border_opa((lv_obj_t *)obj, v, 0);
 }
 
 static void typewriter(lv_timer_t *t)
@@ -161,19 +188,22 @@ static void overlay_clear(lv_timer_t *t)
 {
 	lv_obj_add_flag(lbl_overlay, LV_OBJ_FLAG_HIDDEN);
 	lv_obj_add_flag(door_ring, LV_OBJ_FLAG_HIDDEN);
+	for (int i = 0; i < 3; i++) {
+		lv_anim_delete(pulse[i], NULL);
+		lv_obj_add_flag(pulse[i], LV_OBJ_FLAG_HIDDEN);
+	}
 	lv_obj_clear_flag(lbl_body, LV_OBJ_FLAG_HIDDEN);
 	overlay_active = false;
 	lv_timer_del(t);
 }
 
-static void overlay_show(const char *text)
+static void overlay_show(const char *text, anim_kind_t kind)
 {
 	if (overlay_active) return;
 	overlay_active = true;
 
 	lv_obj_add_flag(lbl_body, LV_OBJ_FLAG_HIDDEN);
 	lv_obj_clear_flag(lbl_overlay, LV_OBJ_FLAG_HIDDEN);
-	lv_obj_clear_flag(door_ring, LV_OBJ_FLAG_HIDDEN);
 
 	/* caption types itself in */
 	strncpy(type_full, text, sizeof(type_full) - 1);
@@ -181,6 +211,42 @@ static void overlay_show(const char *text)
 	type_pos = 0;
 	lv_label_set_text(lbl_overlay, "");
 	lv_timer_create(typewriter, 45, NULL);
+
+	if (kind == ANIM_PULSE) {
+		/* SYNC PING. Three rings expand and fade on a stagger, restarting
+		 * for as long as the overlay holds. Repetition is the point: TE
+		 * is not a one-shot event like a keypress, it is a signal that
+		 * keeps arriving, and the motion should say so. */
+		for (int i = 0; i < 3; i++) {
+			lv_obj_clear_flag(pulse[i], LV_OBJ_FLAG_HIDDEN);
+
+			lv_anim_t grow;
+			lv_anim_init(&grow);
+			lv_anim_set_var(&grow, pulse[i]);
+			lv_anim_set_exec_cb(&grow, anim_scale_cb);
+			lv_anim_set_values(&grow, 40, 420);
+			lv_anim_set_duration(&grow, 1200);
+			lv_anim_set_delay(&grow, i * 400);
+			lv_anim_set_repeat_count(&grow, LV_ANIM_REPEAT_INFINITE);
+			lv_anim_set_path_cb(&grow, lv_anim_path_ease_out);
+			lv_anim_start(&grow);
+
+			lv_anim_t fade;
+			lv_anim_init(&fade);
+			lv_anim_set_var(&fade, pulse[i]);
+			lv_anim_set_exec_cb(&fade, anim_opa_cb);
+			lv_anim_set_values(&fade, 255, 0);
+			lv_anim_set_duration(&fade, 1200);
+			lv_anim_set_delay(&fade, i * 400);
+			lv_anim_set_repeat_count(&fade, LV_ANIM_REPEAT_INFINITE);
+			lv_anim_start(&fade);
+		}
+		lv_timer_t *pt = lv_timer_create(overlay_clear, OVERLAY_MS, NULL);
+		lv_timer_set_repeat_count(pt, 1);
+		return;
+	}
+
+	lv_obj_clear_flag(door_ring, LV_OBJ_FLAG_HIDDEN);
 
 	/* the gear spins one full turn */
 	lv_anim_t spin;
@@ -219,22 +285,57 @@ static void overlay_show(const char *text)
 /* 50ms: fast enough that a human press cannot fall between samples. The 500ms
  * tick used before could miss a short press outright, which is one of the two
  * reasons the first result was ambiguous. */
+/* Polarity is NOT known, so both are tested. Every pass so far configured
+ * pull-UPS and watched for LOW -- which cannot see a button wired to 3V3, and
+ * LilyGo's docs list IO21 as a button on this family. So the scan now flips the
+ * internal pull every ~3s: with a pull-up an idle pin reads 1 and an
+ * active-low button reads 0; with a pull-down an idle pin reads 0 and an
+ * active-HIGH button reads 1. A button is whichever pin disagrees with the
+ * pull currently applied. */
+static bool pull_is_up = true;   /* fixed: pull-flipping proved unreliable */
+
+static void flip_pull(lv_timer_t *t)
+{
+	pull_is_up = !pull_is_up;
+	uint64_t mask = 0;
+	for (size_t i = 0; i < N_CAND; i++)
+		mask |= 1ULL << cand[i];
+	gpio_config(&(gpio_config_t) {
+		.pin_bit_mask = mask,
+		.mode = GPIO_MODE_INPUT,
+		.pull_up_en   = pull_is_up ? GPIO_PULLUP_ENABLE  : GPIO_PULLUP_DISABLE,
+		.pull_down_en = pull_is_up ? GPIO_PULLDOWN_DISABLE : GPIO_PULLDOWN_ENABLE,
+		.intr_type = GPIO_INTR_DISABLE,
+	});
+	/* re-baseline: the idle level just changed for every pin */
+	for (size_t i = 0; i < N_CAND; i++)
+		cand_low[i] = (gpio_get_level(cand[i]) != (pull_is_up ? 1 : 0));
+	ESP_LOGI(TAG, "pull now %s -- a button reads %s when pressed",
+		 pull_is_up ? "UP" : "DOWN", pull_is_up ? "LOW" : "HIGH");
+}
+
 static void scan_pins(lv_timer_t *t)
 {
 	for (size_t i = 0; i < N_CAND; i++) {
-		bool low = (gpio_get_level(cand[i]) == 0);
+		/* "active" = disagrees with the pull currently applied */
+		int idle = pull_is_up ? 1 : 0;
+		bool low = (gpio_get_level(cand[i]) != idle);
 		if (low && !cand_low[i]) {
 			char msg[192];
 			if (!cand_seen_low[i]) {
 				cand_seen_low[i] = true;
 				ESP_LOGI(TAG,
-					 "VERIFY button on GPIO%d: went LOW with "
-					 "internal pull-up -- CONCLUSIVE, a button "
-					 "is wired here", cand[i]);
+					 "VERIFY button on GPIO%d: went %s against an "
+					 "internal pull-%s -- CONCLUSIVE, a button is "
+					 "wired here (active %s)",
+					 cand[i],
+					 pull_is_up ? "LOW" : "HIGH",
+					 pull_is_up ? "up" : "down",
+					 pull_is_up ? "low" : "high");
 			}
 			snprintf(msg, sizeof(msg),
-				 ">> DOOR OPEN GPIO%d", cand[i]);
-			overlay_show(msg);
+				 ">> DETONATION  BTN GPIO%d", cand[i]);
+			nuke_fire(msg);
 		}
 		cand_low[i] = low;
 	}
@@ -259,10 +360,13 @@ static void tick(lv_timer_t *t)
 				 "unexplained (frames? lines? edge count?) and "
 				 "must NOT be recorded as a frame rate",
 				 PIN_LCD_TE, (double)te_hz);
+			char m[64];
+			snprintf(m, sizeof(m), ">> SYNC LOCK %.0fHZ", (double)te_hz);
+			nuke_fire(m);
 		}
 	}
 
-	if (!overlay_active) {
+	if (!overlay_active && !nuke_busy()) {
 		board_facts(buf, sizeof(buf));
 		lv_label_set_text(lbl_body, buf);
 	}
@@ -372,6 +476,24 @@ void pipboy_ui(lv_display_t *disp)
 	lv_obj_set_style_transform_pivot_x(door_ring, 75, 0);
 	lv_obj_set_style_transform_pivot_y(door_ring, 75, 0);
 	lv_obj_add_flag(door_ring, LV_OBJ_FLAG_HIDDEN);
+
+	/* Pulse rings: border-only circles, no fill, so they read as expanding
+	 * wavefronts rather than growing discs. */
+	for (int i = 0; i < 3; i++) {
+		pulse[i] = lv_obj_create(scr);
+		lv_obj_set_size(pulse[i], 60, 60);
+		lv_obj_center(pulse[i]);
+		lv_obj_clear_flag(pulse[i], LV_OBJ_FLAG_CLICKABLE);
+		lv_obj_set_style_radius(pulse[i], LV_RADIUS_CIRCLE, 0);
+		lv_obj_set_style_bg_opa(pulse[i], LV_OPA_TRANSP, 0);
+		lv_obj_set_style_border_color(pulse[i], PB_GREEN, 0);
+		lv_obj_set_style_border_width(pulse[i], 3, 0);
+		lv_obj_set_style_transform_pivot_x(pulse[i], 30, 0);
+		lv_obj_set_style_transform_pivot_y(pulse[i], 30, 0);
+		lv_obj_add_flag(pulse[i], LV_OBJ_FLAG_HIDDEN);
+	}
+
+	nuke_build(scr, hres, vres);
 
 	lbl_status = lv_label_create(scr);
 	lv_obj_set_style_text_color(lbl_status, PB_DIM, 0);

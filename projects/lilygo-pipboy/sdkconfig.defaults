@@ -51,3 +51,20 @@ CONFIG_LV_FONT_UNSCII_8=y
 CONFIG_LV_FONT_UNSCII_16=y
 CONFIG_LV_FONT_DEFAULT_UNSCII_16=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_28=n
+
+# The Pip-Boy UI builds ~10 LVGL objects (labels, an arc, three pulse rings)
+# from app_main, and LVGL object creation is stack-hungry. The 3584-byte
+# default overflowed task `main` the moment the pulse rings were added --
+# "***ERROR*** A stack overflow in task main has been detected", immediately
+# after pipboy_ui() started allocating. Raised rather than moving the UI to its
+# own task: this is a single-screen app and the main task has nothing else to do.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# A full-screen animation on this panel is legitimately render-bound: 536x240
+# at 16bpp is 257KB per frame, and 40MHz SPI needs ~51ms to move that. The main
+# task therefore spends most of its time waiting on DMA, and the CPU0 idle task
+# gets starved enough to trip the watchdog even though nothing is stuck.
+# Rendering IS the app's job here, so the idle check on CPU0 is turned off
+# rather than pretending the workload is lighter than it is. The CPU1 check
+# stays on, so a genuine hang is still caught.
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n

@@ -230,16 +230,21 @@ pinmap:
       the crosser driver example, so this pin was invisible until the Plus''s own
       config was read.'
   button_1:
-    value: 21
+    value: 0
     provenance: verified
     note: >-
-      GPIO21, measured. WAS RECORDED AS GPIO0 and that was WRONG. Three sources
-      agreed on GPIO0 and it was consistent with the ESP32-S3 BOOT strapping
-      pin, which is exactly why it looked safe -- but all three describe the
-      non-Plus sibling, the same failure that made the display transport take
-      seven attempts. A 20-pin scan under internal pull-up found GPIO21 goes
-      low on press and GPIO0 never moves. The wrong value is kept here because
-      the reasoning was reasonable and still wrong.
+      GPIO0, active low, measured -- which is what the three sources said all
+      along. The detour is worth recording. GPIO21 was briefly recorded as
+      verified on a single unreproduced reading, then retracted. Several rounds
+      of scanning afterwards found nothing at all, and that silence was NOT
+      data: the full-screen animation was wedging the render loop, so every
+      press test ran against a frozen app. Once the animation stopped using
+      transform_scale, GPIO0 reproduced immediately -- 8 consecutive sample
+      windows, sole pin low, verification firing on each press.
+      The board's other button is RESET, wired to the chip reset line, so no
+      GPIO can observe it. LilyGo's docs list an IO21 button on this family; it
+      is not wired as a switch to ground on this unit. GPIO4 reads low at boot
+      and is battery voltage sensing per the vendor pinout, not a button.
 display:
   width:
     value: 240
@@ -534,6 +539,31 @@ board:
       for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-05'
+  tested:
+    - pinmap.button_1
+  method: >-
+    Scan of 20 safe GPIOs as pull-up inputs at 50ms, after fixing a render bug
+    that had been wedging the app. GPIO0 goes low on every press, is the only
+    pin that moves, and reproduced across 8 consecutive sample windows.
+  result: verified
+  note: >-
+    The original value was correct. Two rounds of "no button found" were the
+    instrument failing, not the board: the animation used transform_scale on 14
+    objects, which stalled LVGL's render loop, so the scanner had stopped
+    running before any press was made. A null result from an unverified
+    instrument is not evidence -- confirm the tool is alive in the same window
+    the measurement is taken, not merely at startup.
+- date: '2026-09-05'
+  tested:
+    - pinmap.button_1
+  method: >-
+    Retraction. GPIO21 was recorded as verified on one low reading at 7.49s,
+    coincident with the scanner's first pass; it never reproduced.
+  result: unverified
+  note: >-
+    One unreproduced observation is not a verification. Recording it as one was
+    the error this provenance ladder exists to prevent.
 - date: '2026-09-05'
   tested:
     - pinmap.button_1
