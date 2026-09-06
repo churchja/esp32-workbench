@@ -371,12 +371,19 @@ peripherals:
       -1 RST} and the touch FPC P3 is a six-pin connector.'
   rtc:
     value: PCF85063ATL
-    provenance: probed
-    note: 'ACKs at 0x51 on SDA=3/SCL=2. Address decode only -- no register has
-      been read and no time has been set or kept, so this is probed, not
-      verified. The schematic shows U7 PCF85063ATL with U8 MS412FE-FL26E as its
-      backup cell. Worth knowing: the factory firmware resident on this board
-      contained ZERO references to the part, so the RTC shipped unused.'
+    provenance: verified
+    note: 'Registers read AND written on this unit 2026-09-06. Control_1 reads
+      back with 12_24 clear (24-hour mode). A UTC epoch written to 04h..0Ah in
+      one burst reads back identically, and after 40s of wall time both the RTC
+      and the SNTP-disciplined system clock had advanced together with a delta
+      of +0 s. Two consecutive cold boots restored the clock from it at uptime
+      ~3.0s, BEFORE Wi-Fi association at ~3.7s -- which is the property that
+      matters: the clock no longer depends on the network being up.
+      Schematic U7, with U8 MS412FE-FL26E as its backup cell. The factory
+      firmware contained ZERO references to the part, so it shipped unused.
+      NOT YET EXERCISED: the OS (oscillator-stop) rejection path. It only fires
+      when the backup cell has actually failed, which cannot be staged without
+      damaging the board.'
   charger_pmu:
     value: BQ25896
     provenance: probed
@@ -631,6 +638,28 @@ board:
       for ANY variant in this family. The "check for a BSP first" shortcut that the research_queue recommends
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
+- date: '2026-09-06'
+  tested: [peripherals.rtc]
+  method: 'projects/lilygo-vaultweather''s wx_rtc.c driving the part over the shared
+    I2C bus, plus its ''c'' console command. Read Control_1 (00h) to confirm 24-hour
+    mode; burst-read the seven time registers 04h..0Ah in one transaction as the
+    datasheet requires; wrote a UTC epoch back the same way; compared RTC against
+    the SNTP-disciplined system clock twice, 40s apart; and power-cycled the ESP32
+    twice via reset to confirm the restore happens before Wi-Fi.'
+  result: verified
+  note: 'Round-trip exact; delta RTC-vs-system +0 s on both samples 40s apart. Boot
+    log shows "clock restored from RTC" at uptime 3.0-3.2s against "joining" at 3.7s,
+    so the restore genuinely precedes the network. Datasheet used: NXP PCF85063A Rev
+    7.3, 2026-07-14. Two traps it documents and this driver obeys: the seven time
+    registers MUST be accessed in ONE transaction (a split read can take minutes
+    from before a rollover and hours from after), and the whole access must finish
+    inside 1 second because only one pending increment is buffered -- overrunning it
+    loses seconds silently and permanently. The weekday register is plain binary,
+    not BCD, and the chip never derives or validates it. Century is assumed 2000-2099;
+    the part has no century bit.
+    LIMIT OF THIS TEST: a genuine power-cut hold was NOT performed, so "keeps time
+    with the ESP32 unpowered" rests on the backup cell being present per the
+    schematic rather than on a measurement.'
 - date: '2026-09-06'
   tested: [pinmap.touch_sda, pinmap.touch_scl, pinmap.touch_int,
            peripherals.touch_controller]

@@ -158,6 +158,26 @@ bool wx_net_is_up(void);
 int  wx_net_rssi(void);                 /* dBm, or 0 if not associated */
 void wx_net_ip_str(char *buf, size_t n);
 
+/* -------------------------------------------------------------------------
+ * Battery-backed RTC (PCF85063ATL at 0x51)
+ * ---------------------------------------------------------------------- */
+
+/* The ESP32-S3's internal RTC survives a soft reset but NOT a power cut, so
+ * without this the clock came only from SNTP: unplug the board or lose the
+ * router and it booted at 1970 until the network returned. This part has its
+ * own backup cell and keeps time with the ESP32 unpowered.
+ *
+ * Read it BEFORE starting SNTP -- see wx_rtc.c for why the order matters. */
+esp_err_t wx_rtc_init(void);
+
+/* ESP_ERR_INVALID_STATE when the chip's OS flag says the oscillator stopped,
+ * which means the reading is meaningless rather than merely old. Callers must
+ * not fall back to using it as an approximation. */
+esp_err_t wx_rtc_read(time_t *out);
+
+/* Store UTC epoch seconds, and clear the OS flag as a side effect. */
+esp_err_t wx_rtc_write(time_t t);
+
 /* Start SNTP and block until the clock is plausibly set (year > 2024).
  * The TZ is derived from the API response, not hardcoded -- see wx_fetch.c. */
 esp_err_t wx_time_sync(int timeout_ms);

@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -339,15 +340,15 @@ static void console_init(void)
 		return;
 	}
 	console_ready = true;
-	ESP_LOGI(TAG, "serial console ready -- s=snapshot n=next r=refresh t=touch ?=help");
+	ESP_LOGI(TAG, "serial console ready -- s=snap n=next r=refresh t=touch c=clock ?=help");
 }
 
 static void screen_dump(void);          /* defined below */
 
 static void console_help(void)
 {
-	printf("\ncommands: s = screen dump   n = next panel   "
-	       "r = force refresh   t = touch probe   ? = this help\n");
+	printf("\ncommands: s = screen dump   n = next panel   r = force refresh\n"
+	       "          t = touch probe   c = clock/RTC status   ? = this help\n");
 }
 
 /* Non-blocking. Returns immediately when nothing has been typed, which is the
@@ -382,6 +383,31 @@ static void console_poll(void)
 			 * than the threading needed to avoid it. */
 			wx_touch_probe(10);
 			break;
+		case 'c':
+		case 'C': {
+			/* Clock status. The delta is the number that matters:
+			 * it is the RTC's drift against the SNTP-disciplined
+			 * system clock, and it is the only way to tell a
+			 * working backup from one that merely answers. */
+			time_t sys = time(NULL), rtc = 0;
+			struct tm g;
+			char a[32], b[32] = "--";
+			gmtime_r(&sys, &g);
+			strftime(a, sizeof(a), "%Y-%m-%d %H:%M:%S", &g);
+			esp_err_t re = wx_rtc_read(&rtc);
+			if (re == ESP_OK) {
+				gmtime_r(&rtc, &g);
+				strftime(b, sizeof(b), "%Y-%m-%d %H:%M:%S", &g);
+				printf("\nCLOCK  sys %s UTC\n       rtc %s UTC"
+				       "\n       delta %+lld s\n",
+				       a, b, (long long)(rtc - sys));
+			} else {
+				printf("\nCLOCK  sys %s UTC\n"
+				       "       rtc UNAVAILABLE: %s\n",
+				       a, esp_err_to_name(re));
+			}
+			break;
+		}
 		case '?':
 		case 'h':
 			console_help();
@@ -754,6 +780,29 @@ void app_main(void)
 	 * touch controller did not answer would be a worse device. */
 	if (wx_touch_init() != ESP_OK)
 		ESP_LOGW(TAG, "tap-to-wake unavailable; schedule only");
+
+	/* Restore the clock from the battery-backed RTC BEFORE any network
+	 * exists. This is what makes the display correct within a second of a
+	 * cold boot instead of after a DHCP lease and an NTP round trip -- and
+	 * correct at all when there is no network to wait for. */
+	if (wx_rtc_init() == ESP_OK) {
+		time_t t;
+		if (wx_rtc_read(&t) == ESP_OK) {
+			struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
+			settimeofday(&tv, NULL);
+			char stamp[32];
+			struct tm g;
+			gmtime_r(&t, &g);
+			strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &g);
+			ESP_LOGI(TAG, "clock restored from RTC: %s UTC", stamp);
+			/* The clock is right, so paint it now rather than
+			 * showing a 1970 date during the ~9s of association
+			 * and SNTP that follow. */
+			wx_ui_invalidate_clock();
+		}
+	} else {
+		ESP_LOGW(TAG, "no RTC; clock will come from SNTP only");
+	}
 	/* LilyGO's init table set 175 during bring-up; go to full so the splash
 	 * and the setup portal are at the same brightness as the running app
 	 * rather than dimmer than it. */
@@ -796,7 +845,15 @@ void app_main(void)
 
 	wx_ui_status("SYNCING CLOCK...");
 	pump_ms(200);
-	wx_time_sync(15000);
+	if (wx_time_sync(15000) == ESP_OK) {
+		/* SNTP beats the RTC, so push the better time back into it.
+		 * Without this the RTC would only ever be as good as whenever it
+		 * was last set, and would drift untouched for months. */
+		time_t now = time(NULL);
+		if (wx_rtc_write(now) == ESP_OK)
+			ESP_LOGI(TAG, "RTC disciplined from SNTP");
+		wx_ui_invalidate_clock();
+	}
 
 	/* Show whatever survived the power cycle immediately, clearly marked
 	 * stale by its age, rather than an empty screen while the first fetch
@@ -813,6 +870,14 @@ void app_main(void)
 	xTaskCreate(wx_fetch_task, "wx_fetch", 8192, NULL, 4, NULL);
 
 	int64_t last_tick_us = 0;
+	/* Re-write the RTC hourly. SNTP resyncs on its own schedule and steps the
+	 * system clock; without this the RTC would hold whatever it was given at
+	 * boot and drift away from the clock it is meant to back up.
+	 *
+	 * Done from THIS task, not the fetch task, so every I2C access in the app
+	 * happens on one task and the shared bus never needs a lock. A seven-byte
+	 * write at 100kHz is well under a millisecond. */
+	int64_t next_rtc_sync_us = esp_timer_get_time() + 3600LL * 1000000;
 
 	for (;;) {
 		if (shared_dirty) {
@@ -864,6 +929,20 @@ void app_main(void)
 			/* Every second, so the 45s wake expires on time and the
 			 * sunset transition is not deferred to the next fetch. */
 			apply_brightness();
+
+			if (now_us >= next_rtc_sync_us) {
+				next_rtc_sync_us = now_us + 3600LL * 1000000;
+				time_t t = time(NULL);
+				struct tm g;
+				gmtime_r(&t, &g);
+				/* Only persist a clock SNTP has vouched for.
+				 * Writing an unsynced clock would overwrite a
+				 * good RTC with a worse value and clear the OS
+				 * flag, destroying the evidence that it should
+				 * not be trusted. */
+				if (g.tm_year + 1900 > 2024)
+					wx_rtc_write(t);
+			}
 		}
 
 		console_poll();

@@ -1,6 +1,8 @@
 set(srcs
 	"main.c"
 	"wx_btn.c"
+	"wx_i2c.c"
+	"wx_rtc.c"
 	"wx_touch.c"
 	"wx_astro.c"
 	"wx_moon_frames.c"

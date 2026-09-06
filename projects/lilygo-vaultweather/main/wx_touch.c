@@ -55,6 +55,7 @@
 #include <esp_timer.h>
 
 #include "vaultweather.h"
+#include "wx_i2c.h"
 
 #define TAG "wx_touch"
 
@@ -214,23 +215,15 @@ static esp_err_t rd(uint8_t reg, uint8_t *out, size_t n)
 
 static esp_err_t bus_init(void)
 {
-	if (bus)
+	if (dev)
 		return ESP_OK;
 
-	i2c_master_bus_config_t bc = {
-		.i2c_port          = I2C_NUM_0,
-		.sda_io_num        = TOUCH_SDA,
-		.scl_io_num        = TOUCH_SCL,
-		.clk_source        = I2C_CLK_SRC_DEFAULT,
-		.glitch_ignore_cnt = 7,
-		.flags.enable_internal_pullup = true,
-	};
-	esp_err_t e = i2c_new_master_bus(&bc, &bus);
-	if (e != ESP_OK) {
-		ESP_LOGE(TAG, "i2c_new_master_bus: %s", esp_err_to_name(e));
-		bus = NULL;
+	/* The bus is SHARED -- the RTC and the PMU sit on it too. Creating one
+	 * here would have been wrong the moment a second module needed it:
+	 * i2c_new_master_bus() on an open port returns ESP_ERR_INVALID_STATE. */
+	esp_err_t e = wx_i2c_bus(&bus);
+	if (e != ESP_OK)
 		return e;
-	}
 
 	i2c_device_config_t dc = {
 		.dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -243,14 +236,16 @@ static esp_err_t bus_init(void)
 	e = i2c_master_bus_add_device(bus, &dc, &dev);
 	if (e != ESP_OK) {
 		ESP_LOGE(TAG, "add_device: %s", esp_err_to_name(e));
-		/* Tear the bus down rather than leaving it cached. Keeping a
-		 * non-NULL bus with a NULL device made every later call take the
-		 * "already initialised" early return, hand NULL to
+		/* Do not cache a half-open state. Keeping a non-NULL bus with a
+		 * NULL device made every later call take the "already
+		 * initialised" early return, hand NULL to
 		 * i2c_master_transmit_receive, and print the confident and wrong
 		 * diagnosis "the controller is asleep and needs its RST pulsed"
-		 * -- misleading output in the one place you would be trusting it. */
-		i2c_del_master_bus(bus);
-		bus = NULL;
+		 * -- misleading output in the one place you would be trusting it.
+		 *
+		 * The BUS is not torn down: it is shared with the RTC, and this
+		 * module does not own it. The early return above now keys off
+		 * `dev`, which is this module's own handle. */
 		dev = NULL;
 		return e;
 	}
