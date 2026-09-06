@@ -212,6 +212,30 @@ pinmap:
       a button and is wrong for this variant. Measured as a short PULSE, not a level
       held for the duration of a touch: low on 4 of 200 samples while 34 touch events
       were read. Usable as a falling-edge wake source; coordinates still need a poll.'
+  sd_miso:
+    value: 13
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
+    note: 'AMOLED_191_SPI_SD_PINS = {13 MISO, 12 MOSI, 14 SCK, 11 CS} in LilyGO''s
+      own board table, corroborated by the V1.0 schematic (J1 microSD, and the
+      CN4/CN5 2.5mm breakout pairs which carry SD_CS+SD_MOSI and SD_MISO+SD_SCK).
+      NOT PROBED -- no card has been inserted and no transfer attempted, so this
+      is vendor_doc rather than verified.'
+  sd_mosi:
+    value: 12
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
+  sd_sck:
+    value: 14
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
+  sd_cs:
+    value: 11
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/src/LilyGo_AMOLED.h
+    note: 'CAUTION: GPIO11-14 are the SD SPI bus AND are broken out on the P4/P5
+      headers. Anything driving those pins for another purpose will fight the
+      card slot.'
   lcd_dc:
     value: 7
     provenance: verified
@@ -334,7 +358,58 @@ display:
     value: RM67162
     provenance: community
     source: https://components.espressif.com/components/crosser/esp-lcd-panel-rm67162
-peripherals: {}
+peripherals:
+  touch_controller:
+    value: CST816S
+    provenance: verified
+    note: 'Chip id register 0xA7 read 0xB5 = CST816S on this unit 2026-09-06,
+      with vendor 0x22 and firmware 0x03. NOTE THE DISAGREEMENT: LilyGO''s own
+      LilyGo_AMOLED.h line 233 comments the entry "Touch CST816T", which would be
+      0xB6. The silicon says otherwise, and a register read outranks a source
+      comment. Either the comment is loose or the part was second-sourced.
+      No reset line exists -- the vendor table records {3 SDA, 2 SCL, 21 IRQ,
+      -1 RST} and the touch FPC P3 is a six-pin connector.'
+  rtc:
+    value: PCF85063ATL
+    provenance: probed
+    note: 'ACKs at 0x51 on SDA=3/SCL=2. Address decode only -- no register has
+      been read and no time has been set or kept, so this is probed, not
+      verified. The schematic shows U7 PCF85063ATL with U8 MS412FE-FL26E as its
+      backup cell. Worth knowing: the factory firmware resident on this board
+      contained ZERO references to the part, so the RTC shipped unused.'
+  charger_pmu:
+    value: BQ25896
+    provenance: probed
+    note: 'ACKs at 0x6B. Address decode only. Schematic U6. Its presence
+      alongside 0x15 and 0x51 is the signature that identified this unit as the
+      Plus rather than any other board in the family.'
+  amoled_pmic:
+    value: AXPM65611
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/schematic/T-Display-S3-AMOLED-Plus.pdf
+    note: 'Schematic U4. Generates the AMOLED panel rails, ELVDD +4.6V and ELVSS
+      -2.2V. NOT ON THE I2C BUS -- it is SWIRE/EN controlled, which is exactly
+      why a bus scan finds only three devices on a board carrying two power ICs.
+      Its enable is GPIO38, the same pin the display driver calls OL_EN and this
+      repo records as lcd_pwr: so "display power" on this board is really "AMOLED
+      rail PMIC enable".'
+  storage:
+    value: microSD slot, SPI
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/schematic/T-Display-S3-AMOLED-Plus.pdf
+    note: 'Schematic J1. Pins in pinmap as sd_miso/sd_mosi/sd_sck/sd_cs. Never
+      exercised.'
+  audio:
+    value: none
+    provenance: vendor_doc
+    source: https://raw.githubusercontent.com/Xinyuan-LilyGO/LilyGo-AMOLED-Series/master/schematic/T-Display-S3-AMOLED-Plus.pdf
+    note: 'RECORDED AS AN ABSENCE ON PURPOSE, so the question does not get asked
+      twice. No speaker, no buzzer, no microphone, no I2S codec or amplifier. The
+      V1.0 schematic''s complete active-device inventory is U1 40MHz crystal, U2
+      ESP32-S3R8, U3 W25Q128JV, U4 AXPM65611, U5 RT9080-33GJ5, U6 BQ25896, U7
+      PCF85063ATL, U8 backup cell -- there is no ninth device. LilyGO''s
+      BoardsConfigure_t struct has no audio field for ANY variant in the family.
+      Sound on this board has to be external.'
 research_queue:
 - field: model_variant
   status: resolved
@@ -557,7 +632,8 @@ board:
       is closed for this board -- a panel driver must be written or a third-party one adopted.'
 verification_log:
 - date: '2026-09-06'
-  tested: [pinmap.touch_sda, pinmap.touch_scl, pinmap.touch_int]
+  tested: [pinmap.touch_sda, pinmap.touch_scl, pinmap.touch_int,
+           peripherals.touch_controller]
   method: 'Ran projects/lilygo-vaultweather''s ''t'' console command, which brings up
     an IDF 6.0 i2c_master bus on SDA=3/SCL=2 at 100kHz, scans 0x08..0x77, reads the
     CST816 identity registers (0xA7 chip, 0xA8 vendor, 0xA9 firmware), then polls
