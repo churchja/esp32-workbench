@@ -416,5 +416,11 @@ typedef enum {
 	WX_BTN_HOLD,       /* 5s -- erase config and re-enter the setup portal */
 } wx_btn_t;
 
+/* INVESTIGATION ONLY -- probes the I2C bus and the CST816 touch controller and
+ * prints what it finds. Not a driver, and nothing calls it during normal
+ * operation; it runs when 't' is typed on the serial console. See wx_touch.c
+ * for what is already measured about this bus and what is not. */
+void wx_touch_probe(int seconds);
+
 void     wx_btn_init(void);
 wx_btn_t wx_btn_poll(void);

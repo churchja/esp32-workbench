@@ -1,6 +1,7 @@
 set(srcs
 	"main.c"
 	"wx_btn.c"
+	"wx_touch.c"
 	"wx_astro.c"
 	"wx_moon_frames.c"
 	"wx_cfg.c"
@@ -45,4 +46,5 @@ idf_component_register(
 		driver
 		esp_timer
 		esp_driver_usb_serial_jtag
+		esp_driver_i2c
 )

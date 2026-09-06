@@ -320,7 +320,7 @@ static void console_init(void)
 		return;
 	}
 	console_ready = true;
-	ESP_LOGI(TAG, "serial console ready -- s=snapshot n=next r=refresh ?=help");
+	ESP_LOGI(TAG, "serial console ready -- s=snapshot n=next r=refresh t=touch ?=help");
 }
 
 static void screen_dump(void);          /* defined below */
@@ -328,7 +328,7 @@ static void screen_dump(void);          /* defined below */
 static void console_help(void)
 {
 	printf("\ncommands: s = screen dump   n = next panel   "
-	       "r = force refresh   ? = this help\n");
+	       "r = force refresh   t = touch probe   ? = this help\n");
 }
 
 /* Non-blocking. Returns immediately when nothing has been typed, which is the
@@ -354,6 +354,14 @@ static void console_poll(void)
 		case 'R':
 			wx_ui_status("REFRESHING...");
 			force_refresh = true;
+			break;
+		case 't':
+		case 'T':
+			/* Blocks the render loop for its duration. Acceptable:
+			 * it is a deliberate diagnostic, not a background task,
+			 * and a frozen clock for ten seconds is a smaller cost
+			 * than the threading needed to avoid it. */
+			wx_touch_probe(10);
 			break;
 		case '?':
 		case 'h':
@@ -588,10 +596,18 @@ static void panel_set_brightness(uint8_t level)
  * Returns 0-255. The floor is deliberately not 0: a clock you cannot read in
  * the dark is not a clock. */
 #define BRIGHT_DAY   255      /* was effectively 208: the driver's 0xD0 default */
-#define BRIGHT_NIGHT 150      /* was 60 THROUGH A BLACK OVERLAY, which is why it
-                               * looked murky rather than merely dim. A real
-                               * WRDISBV level of 150 is legible at night without
-                               * lighting the room. */
+#define BRIGHT_NIGHT  80      /* Panel-life arithmetic: 24/7 is 8,760 h/year
+                               * against a typical OLED rating of 10k-50k h to
+                               * 50% luminance, and nights are half of it. This
+                               * is still readable across a room -- 80/255 on an
+                               * AMOLED in a dark room is not dim the way 80/255
+                               * on an LCD backlight would be, because the black
+                               * around it is genuinely off.
+                               *
+                               * History: 60 THROUGH A BLACK OVERLAY (murky, and
+                               * the wrong mechanism entirely -- see
+                               * panel_set_brightness), then 150 as a real
+                               * WRDISBV level, now 80 for longevity. */
 
 static uint8_t brightness_for(const wx_state_t *st, time_t now)
 {
