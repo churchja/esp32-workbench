@@ -390,7 +390,7 @@ peripherals:
       having been touched.
       It was also ACCURATE across the outage, which matters more than merely
       running: SNTP reported 08:25:41 at uptime 12.445s. The 9.29s of elapsed
-      uptime puts the RTC-derived time at 08:25:41.29 against SNTP's 08:25:41 --
+      uptime puts the RTC-derived time at 08:25:41.29 against SNTP''s 08:25:41 --
       a few hundred milliseconds of error, inside the +/-0.5s floor the part
       imposes. The backup cell keeps accurate time with the ESP32 unpowered.
       OFFSET AFTER DISCIPLINE: +0.006 to +0.096 s against the SNTP-set system
