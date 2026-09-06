@@ -771,13 +771,13 @@ static void build_pane_current(lv_obj_t *p)
 	lbl_big_unit = mk_lbl(p, 147, 32, &lv_font_unscii_16, &st_txt_accent,
 			      "F");
 
-	/* Condition text, cap 18 characters = 288px (x8..296), clear of the
+	/* Condition text, cap 20 characters = 320px (x8..328), clear of the
 	 * icon box at x396. The longest entry in wx_fetch.c's WMO table is 15
 	 * ("FRZ DRIZZLE HVY", "VIOLENT SHOWERS", "STORM + LG HAIL",
-	 * "HEAVY SNOW SHWR") and the longest moon-phase name is 12, so 18 is
-	 * slack rather than a limit -- but the copy is still bounded, because
-	 * the table is free to grow and this label is free to clip. */
-	lbl_cond = mk_lbl_w(p, 8, 90, 288, &lv_font_unscii_16, &st_txt_accent,
+	 * "HEAVY SNOW SHWR"); the binding case is the moon caption
+	 * "WAXING CRESCENT 49%" at 19. The copy is still bounded, because the
+	 * table is free to grow and this label is free to clip. */
+	lbl_cond = mk_lbl_w(p, 8, 90, 320, &lv_font_unscii_16, &st_txt_accent,
 			    LV_TEXT_ALIGN_LEFT, "--");
 
 	/* Stats column, cap 13 characters = 208px (x180..388).
@@ -1146,15 +1146,25 @@ static void render_pane_current(void)
 
 	const lv_image_dsc_t *moon = NULL;
 	const char *cond_text = NULL;
+	char moon_buf[32];
 
 	if (night_now(now)) {
 		if (ic == WX_ICON_CLEAR) {
-			int ph = wx_moon_phase(now);
-			if (ph >= 0 && ph < WX_MOON_PHASES &&
-			    moon_frame_ok(&wx_moon_frames[ph])) {
-				moon = &wx_moon_frames[ph];
-				/* <= 12 characters, per wx_astro.c. */
-				cond_text = wx_moon_phase_name(ph);
+			int st = wx_moon_step(now);
+			if (st >= 0 && st < WX_MOON_STEPS &&
+			    moon_frame_ok(&wx_moon_frames[st])) {
+				moon = &wx_moon_frames[st];
+				/* Name PLUS illuminated percentage. The name
+				 * alone cannot separate a 5% crescent from a
+				 * 45% one -- both are "waning crescent" and
+				 * they look nothing alike -- and the percentage
+				 * alone does not say which way it is heading.
+				 * Longest: "WAXING CRESCENT 49%" = 19 chars,
+				 * 304px, inside the 320px label. */
+				snprintf(moon_buf, sizeof(moon_buf), "%s %d%%",
+					 wx_moon_name(now),
+					 (int)(wx_moon_illum(now) * 100.0f + 0.5f));
+				cond_text = moon_buf;
 			}
 		} else if (ic == WX_ICON_PARTLY &&
 			   moon_frame_ok(&wx_moon_cloud_frame)) {
@@ -1165,13 +1175,15 @@ static void render_pane_current(void)
 		}
 	}
 
-	/* Cap 18 characters (288px, x8..296). weather_code -1 means "unknown",
-	 * which is not the same as code 0 (clear sky). */
+	/* Cap 20 characters (320px, x8..328). Raised from 18 to fit the moon
+	 * caption "WAXING CRESCENT 49%"; the icon box starts at x396, so there
+	 * was 100px of slack. weather_code -1 means "unknown", which is not the
+	 * same as code 0 (clear sky). */
 	if (!cond_text && g_st.cur.weather_code >= 0)
 		cond_text = wx_code_to_text(g_st.cur.weather_code);
 	if (cond_text) {
-		char t[32];
-		copy_upper(t, sizeof(t), cond_text, 18);
+		char t[36];
+		copy_upper(t, sizeof(t), cond_text, 20);
 		lv_label_set_text(lbl_cond, t);
 	} else {
 		lv_label_set_text(lbl_cond, "--");

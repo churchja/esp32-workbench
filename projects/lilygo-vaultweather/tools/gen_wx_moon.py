@@ -137,7 +137,53 @@ import gen_wx_icons as wxi          # cloud() -- see docstring
 W = H = 96
 SS = 4                              # supersample factor; see docstring
 TAU = 2.0 * math.pi
-N_PHASES = 8                        # MUST equal WX_MOON_PHASES in vaultweather.h
+# 48 steps around the synodic month, not 8.
+#
+# Eight buckets are 3.7 days wide, and snapping to them put "LAST QTR" on a
+# moon that was 1.7 days past last quarter and visibly a crescent. The drawing
+# code below was always continuous -- draw_moon() derives the terminator from
+# cos(2*pi*f) for any f -- so the bucket count was the only thing making it
+# discrete.
+#
+# 48 steps is 0.62 days apart, which is below the resolution of a 96x96 icon,
+# and costs 48 * 1160 = 55,680 bytes against ~1.5MB of free app partition.
+# MUST equal WX_MOON_STEPS in vaultweather.h.
+N_PHASES = 48
+
+
+def lit_of(i):
+	# Illuminated fraction of step i, 0..1.
+	return (1.0 - math.cos(TAU * i / N_PHASES)) / 2.0
+
+
+def limb_of(i):
+	# Which limb carries the light. Waxing is lit on the RIGHT in the
+	# northern hemisphere; mirroring this is the classic error and is
+	# trivially visible to anyone who looks up.
+	f = (i / N_PHASES) % 1.0
+	if f < 1e-9:
+		return '--'
+	return 'R' if f < 0.5 else 'L'
+
+
+def phase_label(i):
+	# Descriptor for the generated comment and the contact sheet ONLY.
+	# The name the DEVICE shows is derived at runtime in wx_astro.c from
+	# the continuous fraction. Baking eight names into the art is exactly
+	# what put 'LAST QTR' on a moon that was visibly a waning crescent.
+	f = (i / N_PHASES) % 1.0
+	k = lit_of(i)
+	for centre, name in ((0.0, 'NEW'), (0.25, 'FIRST QTR'),
+	                     (0.5, 'FULL'), (0.75, 'LAST QTR')):
+		d = abs(f - centre)
+		d = min(d, 1.0 - d)
+		if d < 0.02:
+			return name
+	wax = f < 0.5
+	if k < 0.5:
+		return 'WAX CRESC' if wax else 'WAN CRESC'
+	return 'WAX GIBB' if wax else 'WAN GIBB'
+
 
 # cloud() draws through gen_wx_icons' own module-level geometry constants, not
 # through this file's. If that file ever moves off 96x96 or off 4x
@@ -153,12 +199,9 @@ INK = 2.4                           # gen_wx_icons.INK, same pen for the same se
 R_MOON = 34.0                       # 34 + 1.6px wobble + 1.3px arc = 37 < 48
 CX = CY = 48.0
 
-PHASE_NAMES = ["NEW MOON", "WAX CRESCENT", "FIRST QTR", "WAX GIBBOUS",
-               "FULL MOON", "WAN GIBBOUS", "LAST QTR", "WAN CRESCENT"]
 
 # Which limb the sheet expects to be lit, so the contact sheet states the claim
 # rather than leaving it to be eyeballed.
-PHASE_LIT = ["--", "R", "R", "R", "both", "L", "L", "L"]
 
 
 # ---------------------------------------------------------------------------
@@ -522,19 +565,20 @@ def write_c(path, packed, packed_cloud):
 		        " * black, so the black between the unlit limb and the lit mass\n"
 		        " * IS the comic outline.\n"
 		        " *\n"
-		        " * Index order is the same as wx_moon_phase(): 0 NEW,\n"
-		        " * 2 FIRST QUARTER, 4 FULL, 6 LAST QUARTER. Waxing phases are\n"
-		        " * lit on the RIGHT limb (northern hemisphere).\n"
+		        " * Index i is cycle fraction i/N: 0 NEW, N/4 FIRST QUARTER,\n"
+		        " * N/2 FULL, 3N/4 LAST QUARTER. Waxing phases are lit on the\n"
+		        " * RIGHT limb (northern hemisphere).\n"
 		        " *\n"
 		        " * vaultweather.h is deliberately NOT included -- it pulls in\n"
 		        " * esp_err.h and the whole app contract, none of which a table\n"
-		        " * of bytes needs. The 8 below MUST track WX_MOON_PHASES. */\n"
+		        " * of bytes needs. The count below MUST track WX_MOON_STEPS. */\n"
 		        % (N_PHASES, W, H, per, STRIDE * H, total, total / 1024.0))
 		f.write('#include "lvgl.h"\n\n')
 
 		for p in range(N_PHASES):
-			f.write("static const uint8_t wxm_%d[] = {  /* %s */\n"
-			        % (p, PHASE_NAMES[p]))
+			f.write("static const uint8_t wxm_%d[] = {  /* f=%.3f  lit=%.0f%% */\n"
+			        % (p, p / N_PHASES,
+			           100.0 * (1.0 - math.cos(TAU * p / N_PHASES)) / 2.0))
 			b = packed[p]
 			for off in range(0, len(b), 24):
 				f.write("\t" + ",".join(str(v) for v in b[off:off + 24]) + ",\n")
@@ -546,16 +590,16 @@ def write_c(path, packed, packed_cloud):
 			        + ",\n")
 		f.write("};\n\n")
 
-		f.write("/* 8 == WX_MOON_PHASES (vaultweather.h). Not included here on\n"
-		        " * purpose; keep the two in step by hand. */\n")
-		f.write("const lv_image_dsc_t wx_moon_frames[8] = {\n")
+		f.write("/* %d == WX_MOON_STEPS (vaultweather.h). Not included here on\n"
+		        " * purpose; keep the two in step by hand. */\n" % N_PHASES)
+		f.write("const lv_image_dsc_t wx_moon_frames[%d] = {\n" % N_PHASES)
 		for p in range(N_PHASES):
 			f.write("\t{ .header = { .magic = LV_IMAGE_HEADER_MAGIC,"
 			        " .cf = LV_COLOR_FORMAT_I1, .w = %d, .h = %d,"
 			        " .stride = %d },\n"
 			        "\t  .data_size = sizeof(wxm_%d), .data = wxm_%d },"
 			        "  /* %s */\n"
-			        % (W, H, STRIDE, p, p, PHASE_NAMES[p]))
+			        % (W, H, STRIDE, p, p, phase_label(p)))
 		f.write("};\n\n")
 
 		f.write("const lv_image_dsc_t wx_moon_cloud_frame =\n"
@@ -585,7 +629,7 @@ def write_sheet(path, packed, packed_cloud):
 	moon looks like.
 	"""
 	cols, pad, lab = 3, 22, 26   # 22px of gutter: at 10 the 13px labels collided
-	imgs = [(PHASE_NAMES[p], PHASE_LIT[p], unpack_i1(packed[p]))
+	imgs = [(phase_label(p), limb_of(p), unpack_i1(packed[p]))
 	        for p in range(N_PHASES)]
 	imgs.append(("MOON+CLOUD", "R", unpack_i1(packed_cloud)))
 	rows = (len(imgs) + cols - 1) // cols
@@ -617,7 +661,7 @@ def ink_report(frames, cloud_frame):
 	for p, img in enumerate(frames):
 		n = sum(1 for v in img.getdata() if v)
 		want = (1.0 - math.cos(TAU * p / N_PHASES)) / 2.0
-		out.append((PHASE_NAMES[p], n, n / total, want))
+		out.append((phase_label(p), n, n / total, want))
 	out.append(("MOON+CLOUD", sum(1 for v in cloud_frame.getdata() if v),
 	            0.0, 0.0))
 	return out
