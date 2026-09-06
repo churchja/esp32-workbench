@@ -70,6 +70,29 @@ static bool s_wifi_ready;       /* esp_wifi_init + handlers done */
 static bool s_wifi_started;
 static bool s_sntp_ready;       /* esp_netif_sntp_init done; it is one-shot too */
 
+/* Set by SNTP's own sync callback. volatile: written on the SNTP task, read on
+ * whichever task called wx_time_sync().
+ *
+ * This exists because "is the year > 2024" STOPPED being a valid proxy for
+ * "SNTP has synced" the moment a battery-backed RTC could set the clock before
+ * the network came up. The symptom was subtle and real: wx_time_sync() returned
+ * ESP_OK on its first check, logged "clock set" for a time SNTP had never
+ * supplied, and the caller then wrote the RTC back with the RTC's own value --
+ * a no-op. SNTP corrected the SYSTEM clock a second or two later, and the RTC
+ * was left behind by exactly that much. It showed up as a -2s delta on the
+ * console's clock command where every earlier reading had been +0s.
+ *
+ * sntp_get_sync_status() is NOT used for this: it self-clears after one read
+ * ("After the update is completed... After that, the status will be reset to
+ * SNTP_SYNC_STATUS_RESET"), so polling it races anything else that looks. */
+static volatile bool s_sntp_synced;
+
+static void sntp_synced_cb(struct timeval *tv)
+{
+	(void)tv;
+	s_sntp_synced = true;
+}
+
 static volatile bool s_have_ip;
 static bool s_joining;          /* true only while wx_net_connect() blocks */
 static int  s_join_fails;
@@ -521,9 +544,10 @@ static bool clock_is_plausible(void)
  * whatever time() reports. */
 esp_err_t wx_time_sync(int timeout_ms)
 {
-	/* Already correct -- a re-sync on a running device (or a soft reset
-	 * that preserved the RTC) has nothing to do. */
-	if (clock_is_plausible() && s_sntp_ready) {
+	/* Already correct -- a re-sync on a running device has nothing to do.
+	 * Requires a REAL sync, not merely a plausible clock: the RTC restore
+	 * makes the clock plausible before SNTP has said anything. */
+	if (s_sntp_synced && clock_is_plausible()) {
 		return ESP_OK;
 	}
 
@@ -535,6 +559,12 @@ esp_err_t wx_time_sync(int timeout_ms)
 		 * one name is already several hosts. */
 		esp_sntp_config_t cfg =
 			ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+
+		/* Set BEFORE init. esp_netif_sntp_init() installs its own
+		 * notification callback unconditionally and chains to this one;
+		 * calling sntp_set_time_sync_notification_cb() afterwards would
+		 * overwrite the wrapper's and break its semaphore. */
+		cfg.sync_cb = sntp_synced_cb;
 
 		esp_err_t err = esp_netif_sntp_init(&cfg);
 		if (err != ESP_OK) {
@@ -566,7 +596,11 @@ esp_err_t wx_time_sync(int timeout_ms)
 	int waited = 0;
 
 	for (;;) {
-		if (clock_is_plausible()) {
+		/* BOTH conditions. The callback proves SNTP delivered something;
+		 * the year test proves what it delivered is not garbage. Either
+		 * alone has been wrong here -- the year test was satisfied by the
+		 * RTC, and a sync event says nothing about the value. */
+		if (s_sntp_synced && clock_is_plausible()) {
 			time_t now = time(NULL);
 			struct tm utc;
 			char stamp[32];

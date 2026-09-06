@@ -381,8 +381,22 @@ peripherals:
       matters: the clock no longer depends on the network being up.
       Schematic U7, with U8 MS412FE-FL26E as its backup cell. The factory
       firmware contained ZERO references to the part, so it shipped unused.
-      NOT YET EXERCISED: the OS (oscillator-stop) rejection path. It only fires
-      when the backup cell has actually failed, which cannot be staged without
+      POWER-CUT HOLD: the board was unplugged for one minute and replugged
+      2026-09-06. The RTC came back with a valid reading -- OS clear, in range,
+      within ~2s of true -- so the backup cell holds time with the ESP32 fully
+      unpowered. This is strong circumstantial evidence rather than a captured
+      boot log: the boot line had scrolled before it could be read, and the
+      conclusion rests on the app having taken the restore path at all, which it
+      demonstrably did.
+      OFFSET AFTER DISCIPLINE: +0.006 to +0.096 s against the SNTP-set system
+      clock. Getting there required TRUNCATING rather than rounding when writing
+      the time -- the part does not reset prescaler stages F0/F1 on a write
+      (datasheet sec 7.2.1.2) so it starts about half a second fast, and
+      rounding to nearest measured a steady +1.21 to +1.24 s. +/-0.5 s is the
+      floor: the registers are whole seconds and the prescaler phase is not
+      addressable.
+      NOT EXERCISED: the OS (oscillator-stop) rejection path. It only fires once
+      the backup cell has actually failed, which cannot be staged without
       damaging the board.'
   charger_pmu:
     value: BQ25896

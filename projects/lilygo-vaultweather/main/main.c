@@ -389,18 +389,31 @@ static void console_poll(void)
 			 * it is the RTC's drift against the SNTP-disciplined
 			 * system clock, and it is the only way to tell a
 			 * working backup from one that merely answers. */
-			time_t sys = time(NULL), rtc = 0;
+			/* Sub-second, deliberately. The RTC only reports whole
+			 * seconds, so an integer difference of two truncated
+			 * values flips between -1 and +1 on a perfectly good
+			 * clock depending on where the second boundaries fall --
+			 * it measures quantization, not drift. Subtracting the
+			 * system clock WITH its microseconds gives the real
+			 * offset in (-1, +1), which is what makes actual drift
+			 * legible over weeks. */
+			struct timeval tv;
+			gettimeofday(&tv, NULL);
+			time_t sys = tv.tv_sec, rtc = 0;
 			struct tm g;
 			char a[32], b[32] = "--";
 			gmtime_r(&sys, &g);
 			strftime(a, sizeof(a), "%Y-%m-%d %H:%M:%S", &g);
 			esp_err_t re = wx_rtc_read(&rtc);
 			if (re == ESP_OK) {
+				double off = (double)(rtc - sys)
+					   - (double)tv.tv_usec / 1e6;
 				gmtime_r(&rtc, &g);
 				strftime(b, sizeof(b), "%Y-%m-%d %H:%M:%S", &g);
-				printf("\nCLOCK  sys %s UTC\n       rtc %s UTC"
-				       "\n       delta %+lld s\n",
-				       a, b, (long long)(rtc - sys));
+				printf("\nCLOCK  sys %s.%03d UTC\n"
+				       "       rtc %s UTC\n"
+				       "       offset %+.3f s\n",
+				       a, (int)(tv.tv_usec / 1000), b, off);
 			} else {
 				printf("\nCLOCK  sys %s UTC\n"
 				       "       rtc UNAVAILABLE: %s\n",
@@ -733,6 +746,34 @@ static uint8_t brightness_for(time_t now)
 	return (mins >= rise_mins && mins < set_mins) ? BRIGHT_DAY : BRIGHT_NIGHT;
 }
 
+/* Persist the system clock into the RTC. TRUNCATE -- do not round.
+ *
+ * This looks like a bug and is not, so the measurement is recorded here.
+ *
+ * The part does not reset its prescaler stages F0/F1 on a write (datasheet
+ * sec 7.2.1.2): after the write, the first increment lands only 0.507813s
+ * later rather than a full second. So the RTC inherently starts running about
+ * half a second FAST relative to the value it was handed, and there is no way
+ * to avoid that through this interface -- even the STOP-bit reset path gives
+ * the same 0.5s first interval.
+ *
+ * Rounding to nearest was tried and measured WORSE: it adds up to another half
+ * second on top of that inherent lead, and the console's 'c' command reported a
+ * steady +1.21 to +1.24s. Truncating subtracts the half second that the
+ * prescaler is about to add back, which is the correction that actually
+ * cancels.
+ *
+ * +/-0.5s is the floor here regardless -- the registers hold whole seconds in
+ * both directions and the prescaler phase is not addressable. That is invisible
+ * on a display showing HH:MM. It is worth getting right only because a baseline
+ * near zero is what makes genuine drift legible on 'c' over weeks. */
+static esp_err_t rtc_persist_now(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return wx_rtc_write(tv.tv_sec);
+}
+
 /* Compute and apply the brightness the current moment calls for.
  *
  * Called both on a tap (so the screen responds instantly) and once a second
@@ -849,8 +890,7 @@ void app_main(void)
 		/* SNTP beats the RTC, so push the better time back into it.
 		 * Without this the RTC would only ever be as good as whenever it
 		 * was last set, and would drift untouched for months. */
-		time_t now = time(NULL);
-		if (wx_rtc_write(now) == ESP_OK)
+		if (rtc_persist_now() == ESP_OK)
 			ESP_LOGI(TAG, "RTC disciplined from SNTP");
 		wx_ui_invalidate_clock();
 	}
@@ -941,7 +981,7 @@ void app_main(void)
 				 * flag, destroying the evidence that it should
 				 * not be trusted. */
 				if (g.tm_year + 1900 > 2024)
-					wx_rtc_write(t);
+					rtc_persist_now();
 			}
 		}
 
