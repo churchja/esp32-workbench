@@ -82,7 +82,13 @@
  *     big temp       w30 h60 t6 at x 8, 43, 78, 113
  *                    -> right edge 143, y 8..68                  OK
  *     unit "F"       x147 y32, 1 ch = 16                -> 163, y49   OK
- *     condition      x8 y90 w288, cap 18 ch = 288       -> 296, y107  OK
+ *     condition      x8 y96 w284, cap 17 ch = 272       -> 280, y113  OK
+ *     cond value     x292 y96 w104, cap 6 ch = 96      -> 388, y113  OK
+ *                    x292 is NOT arbitrary: the stats rows below use
+ *                    "%-7s%s", so every value starts at 180 + 7*16.
+ *                    The moon percentage shares that column instead of
+ *                    trailing the phase name, which put it at a
+ *                    different x for every phase.
  *                    (longest WMO text is 15 ch, longest moon name 12)
  *     feels/humid/   x180 y12 / y40 / y68, w208, cap 13 ch = 208
  *       dew                                             -> 388, y85   OK
@@ -418,6 +424,7 @@ static lv_obj_t  *pane[N_PANELS];
 static seg_digit_t big_temp[4];
 static lv_obj_t  *lbl_big_unit;
 static lv_obj_t  *lbl_cond;
+static lv_obj_t  *lbl_cond_val;   /* right-hand value for the condition row */
 static lv_obj_t  *lbl_feels;
 static lv_obj_t  *lbl_humid;
 static lv_obj_t  *lbl_dew;
@@ -771,14 +778,30 @@ static void build_pane_current(lv_obj_t *p)
 	lbl_big_unit = mk_lbl(p, 147, 32, &lv_font_unscii_16, &st_txt_accent,
 			      "F");
 
-	/* Condition text, cap 20 characters = 320px (x8..328), clear of the
-	 * icon box at x396. The longest entry in wx_fetch.c's WMO table is 15
-	 * ("FRZ DRIZZLE HVY", "VIOLENT SHOWERS", "STORM + LG HAIL",
-	 * "HEAVY SNOW SHWR"); the binding case is the moon caption
-	 * "WAXING CRESCENT 49%" at 19. The copy is still bounded, because the
-	 * table is free to grow and this label is free to clip. */
-	lbl_cond = mk_lbl_w(p, 8, 90, 320, &lv_font_unscii_16, &st_txt_accent,
+	/* Condition row. It is a FOURTH ROW of the stats block, not a caption
+	 * floating under the temperature -- so its value shares the column the
+	 * other three values sit in.
+	 *
+	 * The stats rows below use "%-7s%s": a 7-character caption then the
+	 * value, so every value starts at 180 + 7*16 = x292. The moon
+	 * percentage has to land on that same x or it reads as debris rather
+	 * than as data. It was previously baked into one string
+	 * ("WANING CRESCENT 31%"), which put the number wherever the name
+	 * happened to end -- different for every phase.
+	 *
+	 * y96 continues the 28px row rhythm of the column above (12, 40, 68).
+	 *
+	 * Name: x8, width 284 -> x292, so it can never reach the value column.
+	 * 284px is 17 characters; the longest WMO string is 15 ("FRZ DRIZZLE
+	 * HVY", "VIOLENT SHOWERS", "STORM + LG HAIL", "HEAVY SNOW SHWR") and the
+	 * longest moon name is 15 ("WAXING CRESCENT"), so 17 is slack, not a
+	 * limit. The copy is still bounded: the table is free to grow. */
+	lbl_cond = mk_lbl_w(p, 8, 96, 284, &lv_font_unscii_16, &st_txt_accent,
 			    LV_TEXT_ALIGN_LEFT, "--");
+	/* Value: x292, width 104 -> x396, stopping exactly at the icon box.
+	 * 6 characters; the longest content is "100%". */
+	lbl_cond_val = mk_lbl_w(p, 292, 96, 104, &lv_font_unscii_16,
+				&st_txt_accent, LV_TEXT_ALIGN_LEFT, "");
 
 	/* Stats column, cap 13 characters = 208px (x180..388).
 	 * Format is "%-7s%s": 7-char caption then the value, so the numbers
@@ -1146,7 +1169,8 @@ static void render_pane_current(void)
 
 	const lv_image_dsc_t *moon = NULL;
 	const char *cond_text = NULL;
-	char moon_buf[32];
+	const char *cond_val  = NULL;   /* right-hand column; empty by day */
+	char moon_buf[16];
 
 	if (night_now(now)) {
 		if (ic == WX_ICON_CLEAR) {
@@ -1161,10 +1185,12 @@ static void render_pane_current(void)
 				 * alone does not say which way it is heading.
 				 * Longest: "WAXING CRESCENT 49%" = 19 chars,
 				 * 304px, inside the 320px label. */
-				snprintf(moon_buf, sizeof(moon_buf), "%s %d%%",
-					 wx_moon_name(now),
+				cond_text = wx_moon_name(now);
+				/* Into the VALUE column, not appended to the
+				 * name -- see build_pane_current(). */
+				snprintf(moon_buf, sizeof(moon_buf), "%d%%",
 					 (int)(wx_moon_illum(now) * 100.0f + 0.5f));
-				cond_text = moon_buf;
+				cond_val = moon_buf;
 			}
 		} else if (ic == WX_ICON_PARTLY &&
 			   moon_frame_ok(&wx_moon_cloud_frame)) {
@@ -1175,19 +1201,22 @@ static void render_pane_current(void)
 		}
 	}
 
-	/* Cap 20 characters (320px, x8..328). Raised from 18 to fit the moon
-	 * caption "WAXING CRESCENT 49%"; the icon box starts at x396, so there
-	 * was 100px of slack. weather_code -1 means "unknown", which is not the
-	 * same as code 0 (clear sky). */
+	/* Cap 17 characters (272px), which cannot reach the value column at
+	 * x292. weather_code -1 means "unknown", which is not the same as
+	 * code 0 (clear sky). */
 	if (!cond_text && g_st.cur.weather_code >= 0)
 		cond_text = wx_code_to_text(g_st.cur.weather_code);
 	if (cond_text) {
-		char t[36];
-		copy_upper(t, sizeof(t), cond_text, 20);
+		char t[32];
+		copy_upper(t, sizeof(t), cond_text, 17);
 		lv_label_set_text(lbl_cond, t);
 	} else {
 		lv_label_set_text(lbl_cond, "--");
 	}
+	/* Empty by day: there is no second quantity to report about "OVERCAST",
+	 * and a stale percentage left over from last night would be worse than
+	 * a blank. */
+	lv_label_set_text(lbl_cond_val, cond_val ? cond_val : "");
 
 	/* "%-7s%s" -> 7-char caption + up to 6 of value = cap 13 ch (208px). */
 	fmt_val(v, sizeof(v), g_st.cur.feels_f, 0, "F");
