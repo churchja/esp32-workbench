@@ -24,6 +24,30 @@
       ],
       "baud": 230400,
       "esptool_version": "5.2.0"
+    },
+    {
+      "file": "full-20260907T035323Z-4194304.bin",
+      "sha256": "6057c1b56a9fef622142d31cc6373b1e8d024c6498e547e3e334e601af2ab692",
+      "bytes": 4194304,
+      "app_elf_sha256": "a5f77f15c8762f08efe4487a95343a7c47ba3b13db0a24a9447d77301bac8b2b",
+      "created": "2026-09-07T03:56:44.682331+00:00",
+      "chip": "ESP32-D0WD-V3 (revision v3.1)",
+      "read_seconds": 199.1,
+      "ladder_seconds": 201.5,
+      "attempts": [
+        {
+          "baud": 460800,
+          "seconds": 2.4,
+          "ok": false
+        },
+        {
+          "baud": 230400,
+          "seconds": 199.1,
+          "ok": true
+        }
+      ],
+      "baud": 230400,
+      "esptool_version": "5.2.0"
     }
   ],
   "chip": "ESP32-D0WD-V3 (revision v3.1)"

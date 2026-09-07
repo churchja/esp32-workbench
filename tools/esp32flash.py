@@ -56,6 +56,19 @@ CORRUPTION_MARKERS = (
     "possible serial noise",
     "invalid head of packet",
     "timed out waiting for packet",
+    # esptool 5.x emits this for a short read mid-transfer:
+    #   "Corrupt data, expected 0x1000 bytes but received 0xff2 bytes"
+    # It is a speed failure and was NOT recognised as one, so the ladder
+    # classified it as "a real failure, not a speed one" and returned without
+    # ever trying the next rung -- while the banner it had already printed
+    # promised 460800/230400/115200 "in turn".
+    #
+    # Caught on the classic ESP32 (489d31027e98): 460800 failed with a
+    # recognised marker, 230400 then failed with THIS one, and 115200 was never
+    # attempted. Two consecutive runs failed at 0x07a000 and 0x326000 -- a
+    # MOVING failure point, which is what distinguishes serial corruption from
+    # a bad flash address, and the reason this belongs here.
+    "corrupt data",
 )
 
 

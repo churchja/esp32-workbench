@@ -483,6 +483,26 @@ check("serial corruption is a speed failure", looks_like_baud_failure(CORRUPT), 
 check("no-serial-data is not", looks_like_baud_failure(DEAD), False)
 check("empty output is not", looks_like_baud_failure(""), False)
 
+# esptool 5.x short-read wording. Absent from CORRUPTION_MARKERS, the ladder
+# treated this as a hard failure and stopped one rung early -- on hardware, it
+# never tried 115200 after 230400 failed. The failure address moved between
+# runs (0x07a000, then 0x326000), which is the signature of a speed problem
+# rather than a bad address.
+SHORT_READ = ("A fatal error occurred: Corrupt data, expected 0x1000 bytes "
+              "but received 0xff2 bytes.")
+check("esptool 5.x short read is a speed failure",
+      looks_like_baud_failure(SHORT_READ), True)
+
+# The ladder must actually EXHAUST its rungs on that wording. Asserting the
+# classifier alone would pass even if read_with_fallback ignored it.
+_short = FakeEsp([(1, SHORT_READ), (1, SHORT_READ), (0, "")])
+_rc, _out, _baud, _att = read_with_fallback(
+    _short, "/dev/x", 0, 16, "/tmp/o", tf,
+    clock=FakeClock([0.0, 1.0, 1.0, 2.0, 2.0, 3.0]))
+check("ladder reaches the last rung on a short read", _baud, 115200)
+check("all three rungs were tried", [a["baud"] for a in _att],
+      [460800, 230400, 115200])
+
 print("\nthe board's post-op state is stated, not left to be discovered")
 
 import io, contextlib  # noqa: E402

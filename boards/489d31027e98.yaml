@@ -179,6 +179,27 @@ display:
       header. It says nothing about this board.
       This field says the FIRMWARE drives no panel. It does NOT say no panel is
       attached -- flash bytes cannot see solder. See research_queue.'
+  present:
+    value: true
+    provenance: inferred
+    note: 'OWNER VISUAL INSPECTION, not a measurement -- there is no provenance
+      level for "a human looked at it", and this deliberately sits below anything
+      that would authorise driving a pin.
+      Calibration on that channel, recorded without judgement because it is useful:
+      the owner first reported an OLED and then corrected it to a TFT after
+      looking. Both reports came from the same source; the second is the one that
+      survived contact with the board.
+      Independently consistent with the firmware evidence: the Marauder build
+      flashed here (MARAUDER_DEV_BOARD_PRO) compiles its display layer out
+      entirely, so a panel being physically present and dark is the EXPECTED
+      behaviour, not a fault.'
+  panel_type:
+    value: TFT (no-name, controller unknown)
+    provenance: inferred
+    note: 'Owner-reported, corrected from an earlier "OLED". Controller, resolution,
+      bus and pins all remain unknown -- see research_queue. Marauder has no I2C
+      OLED support at all, so a TFT is also the only panel type any Marauder build
+      could ever drive on this board.'
   controller:
     value: null
     provenance: unverified
@@ -210,7 +231,11 @@ research_queue:
     Heltec WiFi Kit 32, TTGO LoRa32 and Wemos Lolin32 OLED -- the mainstream
     classic-ESP32 boards with an INTEGRATED OLED -- all ship CP2102, not CH340.
     That leaves hand-wired OLED on a plain devkit, or an ideaspark-class board
-    which puts a soldered OLED on a DevKit V1 layout and does use CH340.'
+    which puts a soldered OLED on a DevKit V1 layout and does use CH340.
+    UPDATE after the owner looked at the board: the panel is a TFT, not an OLED,
+    and the owner does not believe it is ideaspark-class. Both of those cut
+    against the integrated-OLED families entirely, which makes a hand-wired or
+    kit-built TFT on a plain devkit the leading hypothesis.'
   how: 'Silkscreen, or an I2C scan on GPIO21/22 (the pins both candidates would use).'
   danger: 'GPIO21 is GPS_TX in the currently-flashed build AND the most likely SDA.
     GPIO16 is the NeoPixel data pin here AND the OLED RST on Heltec/TTGO layouts.
