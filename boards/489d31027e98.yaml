@@ -328,6 +328,41 @@ peripherals:
       the enclosure has one GPS antenna and a switch (C) that toggles its power
       source, so which ESP32 it feeds is a wiring question this profile cannot
       answer. See research_queue.'
+  usb_connectors:
+    value: two, with different reset wiring
+    provenance: verified
+    note: |
+      Both reach THIS chip, and they are not equivalent.
+        micro-USB (right, lower block) -- full auto-reset. esptool connected
+          unattended dozens of times over this session.
+        left USB-C (beside the microSD) -- EN wired, DTR->GPIO0 NOT wired. esptool
+          returns "Wrong boot mode detected (0x13)" unless the boot button is held.
+      This is exactly what the vendor README prescribes and it now has a measured
+      basis: "connect the USB-C cable to the Double Barrel while holding the boot
+      button for the second Marauder". The instruction is not a ritual, it is a
+      consequence of a missing auto-reset line.
+      Worth keeping because it briefly looked like evidence of a DIFFERENT chip. A
+      board that suddenly cannot be auto-reset, after dozens of clean connections,
+      is a strong signal -- and here it meant a different CONNECTOR, not a different
+      chip. Same silicon, different wiring to it.
+  boot_button:
+    value: dot 1 (of the two pinholes on the back)
+    provenance: verified
+    note: |
+      Dot 1 pulls GPIO0 on this chip. Proven, not inferred: held through a genuine
+      cold power-cycle, the ROM banner read
+      "rst:0x1 (POWERON_RESET),boot:0x3 (DOWNLOAD_BOOT(UART0/UART1/SDIO...))" followed
+      by "waiting for download", and a retry loop then connected and read MAC
+      48:9D:31:02:7E:98.
+      Dot 2 does not. Held across 16 consecutive attempts in two runs -- one with a
+      cold power-cycle -- every single one returned boot mode 0x13, normal flash
+      boot. Whatever dot 2 does, it is not to this chip.
+      A GOTCHA THAT INVALIDATED SEVERAL EARLIER ATTEMPTS, recorded so it is not paid
+      for twice: this device has an onboard battery. Unplugging USB does not power it
+      down, so no reset edge is generated, so GPIO0 is never sampled and the boot
+      button does nothing at all. Several "the boot button had no effect" results
+      were really "no reset ever happened". The fix is to use the power switch and
+      confirm the screen actually blanks.
   _retracted_symptom_set:
     value: withdrawn
     provenance: probed
@@ -473,9 +508,25 @@ sibling_board:
       Marauder"; the ONLY firmware route it gives for this unit is the microSD one --
       rename to update.bin, then Device > Update firmware > SD Update. There is no
       documented USB path for this unit because there appears to be none.
-      NOT yet tried and the only thing that could still overturn this: holding each
-      of the two boot dots on the back while inserting. A held boot pin brings up the
-      ROM bootloader even when firmware does not drive USB.
+      THEN EXHAUSTED, 2026-09-07. Full matrix, all with the unit powered and its
+      screen live:
+        left USB-C, plain connect ........ MAC 48:9D:31:02:7E:98 (other unit)
+        top USB-C, plain connect ......... no USB device at all
+        left-edge switch flip ............ no port change, MAC unchanged
+        both dots, paperclip on insert ... nothing new
+        dot 1 + cold power-cycle + loop .. CONNECTED on attempt 3 -> 7E:98
+        dot 2 + loop ..................... 9/9 boot mode 0x13
+        dot 2 + cold power-cycle + loop .. 7+/7+ boot mode 0x13
+      THE DECIDING OBSERVATION is the 0x13 itself, and it is stronger than a timeout
+      would have been. esptool does not infer that number, it READS a boot message
+      off the UART. Something announced SPI_FAST_FLASH_BOOT on this wire on every
+      attempt, and that something is the second unit. A wire carrying the second
+      unit's boot banner is the second unit's wire. It is not shared, not muxed, and
+      not switchable -- so no state the screen unit can be put into makes it
+      reachable here, because there is no conductor between them.
+      CONCLUSION: the screen unit has no USB data path. Consistent with the vendor
+      documenting only an SD-card route for it, and with there being no auto-reset
+      circuitry to flash it over USB even if a wire existed.
   backup:
     value: none, and none obtainable over USB
     provenance: probed
@@ -667,6 +718,27 @@ _diagnostics:
     Staying in bootloader.'
   partition_rc: 0
 verification_log:
+- date: '2026-09-07'
+  tested: [peripherals.usb_connectors, peripherals.boot_button, sibling_board.usb_path]
+  method: 'Seven connection strategies against the enclosure, all read-only: plain
+    connect on each USB connector; a switch flip; paperclip on each of the two rear
+    pinholes during insertion; and for each dot, a retry loop running esptool every
+    ~5s for 60-90s while the button was held continuously, once with and once without
+    a genuine cold power-cycle confirmed by the screen visibly blanking. Boot modes
+    were read from the ROM banner over pyserial with DTR and RTS released so the chip
+    was not reset by the act of listening.'
+  result: verified
+  note: 'The loop-while-held technique is the transferable part. Holding a boot button
+    and connecting requires the human to hit a window they cannot see; retrying every
+    few seconds for a minute while they simply keep the button down removes the timing
+    problem entirely, and the first attempt that lands inside the hold succeeds. Dot 1
+    connected on attempt 3 of 20 that way, having failed every unassisted attempt
+    before it.
+    Second transferable point: distinguish "no answer" from "an answer you did not
+    want". Boot mode 0x13 is a positive reading off the UART, not a silence, and it
+    identified the wire''s owner. Sixteen consecutive 0x13 results were far more
+    informative than sixteen timeouts would have been, and the difference was free --
+    it only required reading the error text rather than the exit code.'
 - date: '2026-09-07'
   tested: [peripherals.serial_cli, peripherals.sd_card, peripherals.gps]
   method: 'Opened /dev/cu.usbserial-110 at 115200 with pyserial, released DTR and RTS
