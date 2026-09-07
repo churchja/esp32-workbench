@@ -138,36 +138,48 @@ identity:
       not exported). Use: idf.py set-target esp32'
 board:
   model:
-    value: HoneyHoney Lab "ESP32 Marauder Double Barrel 5G" (BW16 / RTL8720DN variant)
+    value: HoneyHoney Lab "ESP32 Marauder Double Barrel" (the plain variant, not the 5G)
     provenance: community
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
-      IDENTIFIED FROM OWNER PHOTOGRAPHS, matched marking-for-marking against the
-      vendor's own product photos. The enclosure carries a label set that is not
-      generic: "433M / A / GPS" moulded across the top edge, "D" on the left, "B"
-      over "C" on the right, and "2.4G" with a dot-and-digit at each bottom corner
-      (2 left, 1 right). The vendor photo carries the identical set in the identical
-      places, plus a moulded "HoneyHoney Lab 5G" wordmark in the centre -- and a red
-      LED bleeding through the case exactly at that wordmark, which is where the
-      owner reported seeing a red glow. Same mould.
-      TWO CORRECTIONS TO EARLIER ENTRIES IN THIS FILE, recorded rather than quietly
-      overwritten:
-        * "generic devkit, model not identified" was as far as flash bytes could
-          reach, and it was the right call at the time -- but it was falsified by a
-          photograph in one step. Flash forensics bounded the board; the case
-          identified it.
-        * A stated inference that "two 2.4GHz antenna positions imply a second
-          2.4GHz radio, almost certainly nRF24-class" was WRONG. There is no nRF24.
-          The two 2.4G positions are two separate Wi-Fi radios: the ESP32's own, and
-          the BW16/RTL8720DN's. The reasoning was sound and the conclusion was not.
-      The "Double Barrel" name refers to that pair of Wi-Fi radios. A sibling product
-      substitutes an ESP32-C5 for the BW16; the owner's unit is the BW16 variant.
+      VARIANT SETTLED BY THE OWNER, who read the device in hand and stated it twice.
+      That is the authority here and it is above anything photographs support.
+      HOW THE FIRST ANSWER WENT WRONG, kept because the failure mode is reusable.
+      The product family came from owner photographs matched against vendor photos,
+      and that part held. The VARIANT was then called as "5G / BW16" on the strength
+      of the moulded label set -- "433M / A / GPS" across the top, "D" left, "B" over
+      "C" right, "2.4G" with a dot-and-digit at each bottom corner. Fetching the
+      PLAIN variant's README afterwards showed that label set does not discriminate
+      at all. Both products ship 433MHz CC1101, GPS, four antennas and two 2.4GHz
+      radios; "Double Barrel" means two Wi-Fi radios in BOTH, the 5G merely swapping
+      the second ESP32 for a BW16. The evidence was checked for consistency with the
+      candidate and never for consistency with the alternative, which is the actual
+      error and is not specific to radios.
+      Both variants are also identical on every fact this profile acts on: Marauder
+      hardware version V6 (each README says so verbatim), a 2.8-inch touch screen,
+      the same A/B/C/D lettering, dual USB-C. So nothing downstream moved when the
+      variant changed -- worth knowing before spending effort on a distinction.
+      A PROPOSED TEST THAT WAS WRONG, recorded so it is not proposed again: "plug
+      into the other USB-C port, an ESP32-S2 will enumerate on the plain variant and
+      a Realtek BW16 will not". The owner tried it -- nothing enumerates. The second
+      chip is Flipper-side over the GPIO comb and is not on USB at all; per the
+      README the second USB-C is for charging. A test whose negative result means
+      "the hardware does not work that way" is not a test.
+      ONE FURTHER CORRECTION, recorded rather than quietly overwritten:
+        A stated inference that "two 2.4GHz antenna positions imply a second
+        2.4GHz radio, almost certainly nRF24-class" was WRONG. There is no nRF24.
+        The two 2.4G positions are two separate Wi-Fi radios. On THIS variant the
+        second is an ESP32-S2, Flipper-controlled; on the 5G it is a BW16.
+      Also worth keeping: "generic devkit, model not identified" was as far as flash
+      bytes could reach, and it was the right call at the time -- then a photograph
+      falsified it in one step. Flash forensics bounded the board; the case
+      identified it.
       Vendor is HoneyHoney Lab / HoneyHoneyTrading (Australia); also sold on Tindie:
       https://www.tindie.com/products/honeyhoneytrading/esp32-marauder-double-barrel-5g-c5-version/
   hardware_target:
     value: MARAUDER_V6
     provenance: vendor_doc
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
       The vendor README states, verbatim: "The hardware version of this marauder is
       V6", and "If you would like to update the firmware, please remember to
@@ -197,16 +209,16 @@ board:
   radios:
     value:
     - ESP32 Wi-Fi 2.4GHz + BT (the SoC profiled in `identity`)
-    - BW16 / RTL8720DN -- 5GHz + 2.4GHz Wi-Fi, second radio, NOT on this SoC
+    - ESP32-S2 -- second Wi-Fi radio, Flipper-controlled, NOT on this SoC
     - CC1101 sub-GHz 433MHz
     - GPS receiver
     provenance: vendor_doc
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
       Only the first entry is this profile's SoC. The rest share the enclosure and
-      are NOT reachable from the ESP32 -- the vendor README puts the BW16 on "UART
-      15 and 16 for communicating with Flipper", i.e. the Flipper Zero drives it,
-      not the ESP32. The CC1101 is likewise a Flipper-side peripheral over port B.
+      are NOT reachable from the ESP32 -- they are Flipper-side, driven over the GPIO
+      comb, and none of them appears on USB. The owner confirmed this empirically:
+      the second USB-C port enumerates nothing.
       Recorded here so that a future session does not read "four antennas" off the
       case and conclude this ESP32 has four radios. It has one.
   firmware_running:
@@ -258,7 +270,7 @@ display:
   panel_type:
     value: 2.8-inch touch TFT
     provenance: vendor_doc
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
       Vendor README: "A 2.8-inch touch screen". Supersedes the earlier
       "TFT (no-name, controller unknown)" -- the owner's "no-name TFT" was right
@@ -270,7 +282,7 @@ display:
   touch:
     value: true
     provenance: vendor_doc
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
       Vendor README calls it a touch screen; MARAUDER_V6 defines HAS_TOUCH. The
       currently-flashed DEV_BOARD_PRO target defines neither HAS_TOUCH nor
@@ -337,7 +349,44 @@ pinmap:
     provenance: unverified
     note: 'Also GPS_TX in the DEV_BOARD_PRO build currently flashed. This
       collision is itself evidence that the wrong target is on the board.'
-peripherals: {}
+peripherals:
+  serial_cli:
+    value: present and responding at 115200
+    provenance: verified
+    note: 'THE ONLY WORKING INTERFACE THIS BOARD CURRENTLY HAS. Sent "help" over
+      /dev/cu.usbserial-110 after letting the boot settle; got the Marauder banner
+      ("ESP32 Marauder / v1.12.3 / By: justcallmekoko") and a full command list back
+      -- channel, settings, clearlist, reboot, update -s/-w, ls, led, gpsdata, gps,
+      nmea, gpspoi, gpstracker, evilportal, karma.
+      Matters because with HAS_SCREEN, HAS_TOUCH and HAS_BUTTONS all compiled out of
+      the flashed target, this board would otherwise have no input path whatsoever.
+      It has one. The first probe of this returned only replayed boot text and looked
+      like a dead CLI -- the command had been sent while the chip was still booting.
+      Waiting out the boot changed the answer.'
+  sd_card:
+    value: present in hardware, not mountable under the flashed firmware
+    provenance: probed
+    note: 'Boot log, verbatim: "Failed to mount SD Card" then "SD Card NOT Supported".
+      Not a missing card and not a fault. MARAUDER_V6 defines SD_CS 12 with the SD
+      sharing the display bus (SD_MISO/MOSI/SCK = TFT_MISO/MOSI/SCLK); the flashed
+      MARAUDER_DEV_BOARD_PRO target looks somewhere else. The wrong build is looking
+      for the card on the wrong pins.'
+  gps:
+    value: present in hardware, not detected by the flashed firmware
+    provenance: probed
+    note: 'Boot log, verbatim: "Could not detect GPS baudrate" then "GPS Not Found".
+      Same mechanism as the SD card. DEV_BOARD_PRO uses GPS_TX 21 / GPS_RX 17, but on
+      v6 hardware GPIO21 is TOUCH_CS -- the two targets contend for that pin, which
+      was already recorded in pinmap as a prediction. The boot log is that prediction
+      coming true out loud.'
+  _wrong_build_symptom_set:
+    value: 3 peripherals failing, all from the same cause
+    provenance: probed
+    note: 'Screen dark, SD unmountable, GPS undetected -- three independent-looking
+      faults with one cause: a build whose pin map does not match this hardware. Worth
+      recording as a set, because any one of them alone reads as a hardware fault and
+      would send someone looking for a broken part. Together they read as what they
+      are. Nothing here indicates damaged hardware.'
 recovery:
   backups:
     value: 2 independent full-flash reads, byte-identical outside nvs
@@ -369,7 +418,7 @@ recovery:
   vendor_reflash_path:
     value: unavailable in the current firmware state
     provenance: vendor_doc
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
       THE FINDING THAT MATTERS FOR "can we reflash the Marauder code". The vendor's
       supported update route is NOT over USB. Verbatim from the README: download the
@@ -404,6 +453,17 @@ recovery:
       bytes in it are the overflow tail of the prior firmware, not firmware of their
       own. If app0 is destroyed there is no on-device fallback; recovery is the local
       backup over USB or nothing.'
+  serial_update_command:
+    value: exists but is blocked
+    provenance: probed
+    note: 'The CLI exposes "update -s" (SD) and "update -w" (web), which is the same
+      updater the vendor documents behind the touchscreen menu -- so the missing menu
+      is NOT actually the blocker it looked like. The blocker is one layer down: the
+      SD card does not mount under this build, so "update -s" has nothing to read
+      from. "update -w" would be a network fetch and a write, and has not been run.
+      This supersedes the earlier reading that the vendor SD path was unreachable
+      purely for want of a screen. It is unreachable for want of a mounted card.
+      USB remains the clean path in either case.'
   status:
     value: recoverable, not yet reflashed
     provenance: probed
@@ -525,6 +585,28 @@ _diagnostics:
     Staying in bootloader.'
   partition_rc: 0
 verification_log:
+- date: '2026-09-07'
+  tested: [peripherals.serial_cli, peripherals.sd_card, peripherals.gps]
+  method: 'Opened /dev/cu.usbserial-110 at 115200 with pyserial, released DTR and RTS
+    so the chip ran the app rather than entering download mode, pulsed RTS to force a
+    clean reset, and captured the boot log. Then reopened, waited out the full boot,
+    flushed the input buffer, sent "help" and read the reply. Read-only throughout --
+    a reset is not a write, and no flash operation was performed.'
+  result: verified
+  note: 'Boot log carried "Failed to mount SD Card", "SD Card NOT Supported", "Could
+    not detect GPS baudrate" and "GPS Not Found", then the Marauder banner reporting
+    v1.12.3. "help" returned the full command list, so the serial CLI is a live
+    control path -- the only one this board currently has, with screen, touch and
+    buttons all compiled out.
+    A METHOD NOTE WORTH MORE THAN THE RESULT: the first attempt sent "help" 0.5s
+    after opening the port and got back only replayed boot text. That reads exactly
+    like a dead CLI, and stopping there would have recorded a false negative. The
+    board was still booting. Waiting 8s before sending changed the answer completely.
+    Probes of a device that is still starting up do not return "no", they return
+    noise, and the two are easy to confuse.
+    The SD and GPS results are marked probed rather than verified deliberately: what
+    is verified is that the FIRMWARE cannot see them. Whether the parts are physically
+    present and healthy is a different claim, and the boot log cannot reach it.'
 - date: '2026-09-07'
   tested: [recovery.backups, recovery.status]
   method: 'Read-only pre-flight. Split backup full-20260907T035323Z-4194304.bin into
