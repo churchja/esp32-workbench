@@ -571,6 +571,34 @@ sibling_board:
       card is no longer byte-identical to what the Marauder left on it. Here that cost
       nothing because the card was blank, but a forensic image of an SD card must be
       taken before macOS ever sees it, not after.
+  pending_update:
+    value: v1.15.1 v6_1 staged on the microSD as update.bin, not yet applied
+    provenance: verified
+    note: |
+      Written 2026-09-07T06:34Z at the owner's instruction. Source
+      backups/489d3102a948/upstream-marauder-v1.15.1-v6_1.bin, 1,710,224 bytes.
+      VERIFIED THREE WAYS BEFORE IT WENT NEAR THE CARD, because the vendor's warning
+      is specifically "using the wrong or a corrupted firmware file may brick the
+      device" and this unit has no USB recovery path:
+        1. GitHub's own published digest for the asset is
+           sha256:4911726c809a2e4b0d3f54919048dfa1ef9c5bbeaf5c5144297b34d46a1c9a3d
+           and our download hashes identically.
+        2. The image is structurally sound: magic 0xE9, chip_id 0 (ESP32), 6
+           segments, app_desc magic 0xabcd5432, and walking all six segment headers
+           lands byte-exactly on 1,710,224 -- so it is neither truncated nor padded.
+           A hash match alone would not have shown that; it only proves the bytes
+           match what GitHub serves.
+        3. Re-hashed after the copy by reading it back OFF the card, not from the
+           page cache after a sync -- same digest. Then the card was ejected cleanly.
+      macOS wrote an AppleDouble sidecar ._update.bin during the copy; it was removed
+      with dot_clean and the file re-verified afterwards. The card now holds exactly
+      update.bin and an empty SCRIPTS directory.
+      RISK ACCEPTED KNOWINGLY BY THE OWNER, recorded because the repo's own rule says
+      no write without a verified backup of that board and this write has none. The
+      unit was healthy on v1.12.1 before this. The concern was put to them with the
+      three facts -- it works, there is no backup and none obtainable, and there is no
+      USB undo -- and they chose the upgrade over a same-version reflash or leaving it
+      alone. That is their call to make; this entry records that it was informed.
   status:
     value: healthy, nothing to fix
     provenance: probed
