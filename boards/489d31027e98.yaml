@@ -617,6 +617,34 @@ sibling_board:
       Options recorded for whoever picks this up: accept it; roll back using
       backups/489d3102a948/upstream-marauder-v1.12.1-v6_1.bin by the same SD route;
       file it upstream; or build with HAS_IP5306 restored.
+  battery_fix_applied:
+    value: custom v1.15.1 + HAS_IP5306, applied 2026-09-07, battery meter restored
+    provenance: verified
+    source: https://github.com/churchja/esp32-workbench/tree/main/firmware/marauder-v6_1-ip5306
+    note: |
+      Device Info now reads "Battery Monitor: supported" and "Battery Lvl: 50%",
+      and the status-bar percentage is back at top right. Version v1.15.1, Hardware
+      Marauder v6.1, MACs and SD unchanged.
+      TWO PREDICTIONS CONFIRMED BY THIS, both made from source before the flash:
+        1. The reading is 50% -- a QUARTER value. The IP5306 path returns only
+           25/50/75/100 because it maps two register bits; a MAX17048's float
+           cellPercent() would essentially never land on a round quarter. So the
+           number is positive evidence that the IP5306 probe specifically is
+           answering, not merely that some battery code runs. The same reasoning
+           applied backwards to the owner's original v1.12.1 screenshot, which read
+           75%.
+        2. The status-bar percentage returned. That symptom was never observed
+           broken -- it was DERIVED from i2c_supported having exactly two consumers,
+           WiFiScan.cpp and MenuFunctions.cpp. Predicting a symptom you have not
+           seen and then seeing it resolve is a stronger check on the model than
+           fixing the symptom you were shown.
+      The firmware is a local build, not an official release: 1,709,360 bytes,
+      sha256 e365927a1c52de3719f324845a5efc42bb7c76bd8585d04160b8989503cda042,
+      archived with its unpatched control at firmware/marauder-v6_1-ip5306/.
+      ON-CARD ROLLBACK EXISTS, by accident and worth keeping: the card still holds
+      update.bin.applied-v1.15.1, which is stock v1.15.1. Renaming it to update.bin
+      and re-running SD Update returns this unit to stock without a computer. That
+      is the only recovery path this board has, since it has no USB.
   status:
     value: healthy, nothing to fix
     provenance: probed
