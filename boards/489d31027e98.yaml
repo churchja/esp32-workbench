@@ -1,0 +1,209 @@
+schema_version: 1
+profile_id: 489d31027e98
+identified_at: '2026-09-07T03:05:03.822767+00:00'
+port_seen_on: /dev/cu.usbserial-110
+identity:
+  usb_vid:
+    value: '0x1a86'
+    provenance: usb
+  usb_pid:
+    value: '0x7523'
+    provenance: usb
+  usb_product:
+    value: USB Serial
+    provenance: usb
+    note: USB product string as announced in THIS mode. Board-level names appear in app mode; ROM download
+      mode usually reports just the chip.
+  usb_interface:
+    value: CH340/CH341 USB-UART bridge
+    provenance: usb
+  usb_interface_kind:
+    value: bridge
+    provenance: usb
+    note: native = the SoC implements USB directly (supports USB-JTAG debug, USB CDC console, and can
+      re-enumerate after reset). bridge = a separate UART chip; the SoC has no USB peripheral.
+  usb_vendor:
+    value: QinHeng (bridge vendor, not board vendor)
+    provenance: usb
+  chip:
+    value: ESP32-D0WD-V3 (revision v3.1)
+    provenance: probed
+  chip_family:
+    value: ESP32-D0WD-V3
+    provenance: probed
+  chip_revision:
+    value: '3.1'
+    provenance: probed
+  chip_features:
+    value:
+    - Wi-Fi
+    - BT
+    - Dual Core + LP Core
+    - 240MHz
+    - Vref calibration in eFuse
+    - Coding Scheme None
+    provenance: probed
+    note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
+      of the vendor listing.
+  crystal:
+    value: 40MHz
+    provenance: probed
+  mac:
+    value: 48:9d:31:02:7e:98
+    provenance: probed
+    note: Base MAC from eFuse (read from the 'MAC' line) -- globally unique per board. Used as the profile
+      and backup key so two boards of the same model never collide.
+  flash_manufacturer_id:
+    value: '0x68'
+    provenance: probed
+  flash_device_id:
+    value: '0x4016'
+    provenance: probed
+  flash_size:
+    value: 4MB
+    provenance: probed
+    note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
+      wrong about this.
+  partitions:
+    value:
+    - label: nvs
+      type: data
+      subtype: nvs
+      offset: '0x9000'
+      offset_int: 36864
+      size: '0x5000'
+      size_int: 20480
+      size_human: 20KB
+      encrypted: false
+    - label: otadata
+      type: data
+      subtype: ota
+      offset: '0xe000'
+      offset_int: 57344
+      size: '0x2000'
+      size_int: 8192
+      size_human: 8KB
+      encrypted: false
+    - label: app0
+      type: app
+      subtype: ota_0
+      offset: '0x10000'
+      offset_int: 65536
+      size: '0x1e0000'
+      size_int: 1966080
+      size_human: 1.875MB
+      encrypted: false
+    - label: app1
+      type: app
+      subtype: ota_1
+      offset: '0x1f0000'
+      offset_int: 2031616
+      size: '0x1e0000'
+      size_int: 1966080
+      size_human: 1.875MB
+      encrypted: false
+    - label: spiffs
+      type: data
+      subtype: spiffs
+      offset: '0x3d0000'
+      offset_int: 3997696
+      size: '0x30000'
+      size_int: 196608
+      size_human: 192KB
+      encrypted: false
+    provenance: probed
+    note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
+      it over any assumed default.
+  partition_table_md5:
+    value: 3e74a399f8859c234514de43eeb7924c
+    provenance: probed
+  applications:
+    value:
+    - secure_version: 0
+      app_version: 45c1b25
+      project_name: arduino-lib-builder
+      build_time: '10:16:30'
+      build_date: Nov 12 2025
+      idf_version: v5.5.1-710-g8410210c9a
+      app_elf_sha256: a5f77f15c8762f08efe4487a95343a7c47ba3b13db0a24a9447d77301bac8b2b
+      partition: app0
+    provenance: probed
+    note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
+      and which SDK built it.
+  idf_target:
+    value: esp32
+    provenance: inferred
+    note: 'Derived from probed chip_family by longest-prefix match (''esp32d0wdv3'' -> ''esp32''; set-target
+      does not accept the full part number). Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
+      not exported). Use: idf.py set-target esp32'
+pinmap: {}
+peripherals: {}
+research_queue:
+- field: display
+  status: unknown
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Vendor schematic for the ESP32-D0WD-V3 board carrying this display. Then check for an existing
+    BSP component -- search the ESP Component Registry (components.espressif.com) for the board name,
+    and espressif/esp-bsp, which already encodes panel type, offsets and pins for many vendor boards.
+    Confirm the controller part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+- field: pinmap
+  status: unknown
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+- field: power
+  status: unknown
+  why: Battery connector, charge IC, and ADC divider ratio are board-level.
+  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
+    corrupts every battery reading.
+_diagnostics:
+  esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
+  esptool_version: 5.2.0
+  esptool_dialect: hyphenated (5.x)
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1788750292
+  flash_id_rc: 0
+  flash_id_output: 'esptool v5.2.0
+
+    Serial port /dev/cu.usbserial-110:
+
+    Connecting......
+
+    Detecting chip type... ESP32
+
+    Connected to ESP32 on /dev/cu.usbserial-110:
+
+    Chip type:          ESP32-D0WD-V3 (revision v3.1)
+
+    Features:           Wi-Fi, BT, Dual Core + LP Core, 240MHz, Vref calibration in eFuse, Coding Scheme
+    None
+
+    Crystal frequency:  40MHz
+
+    MAC:                48:9d:31:02:7e:98
+
+
+    Uploading stub flasher...
+
+    Running stub flasher...
+
+    Stub flasher running.
+
+
+    Flash Memory Information:
+
+    =========================
+
+    Manufacturer: 68
+
+    Device: 4016
+
+    Detected flash size: 4MB
+
+    Flash voltage set by a strapping pin: 3.3V
+
+
+    Staying in bootloader.'
+  partition_rc: 0

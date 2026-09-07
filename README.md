@@ -136,8 +136,9 @@ what the tools actually recorded.
 | Flipper Zero Wi-Fi Module v1 | `ESP32-S2` | `esp32s2` | 4MB | none | `USB-OTG` | 5 | **460800** | `3030f9837418` |
 | CH340 board (ESP8266) | `ESP8266EX` | `**none**` | 4MB | none | `CH340 bridge` | 0 | **230400** | `bcddc2246e97` |
 | Seeed XIAO ESP32-S3 *(name inferred)* | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `dcb4d93b42ac` |
+| Unknown board *(model not identified)* | `ESP32-D0WD-V3` | `esp32` | 4MB | none | `CH340 bridge` | 5 | **230400** | `489d31027e98` |
 
-Backup and hash-verify: **all eleven**. Restore: verified on the S3 devkit, both
+Backup and hash-verify: **all twelve**. Restore: verified on the S3 devkit, both
 QT Pys, and the ESP8266, and performed on the LilyGo after its variant scan; the
 M5 Stamp, the Cardputer ADV and the Flipper module have not been written to.
 Console over USB: free on every S3, needs `templates/idf-usb-console` on all
@@ -209,7 +210,7 @@ interface**, not the individual board:
 |---|---|---|
 | USB-OTG | **3** × ESP32-S2 | **460800** |
 | USB-Serial/JTAG | **6** × ESP32-S3 | 230400 |
-| CH340 UART bridge | ESP8266 | 230400 |
+| CH340 UART bridge | **2** — ESP8266 and classic ESP32 | 230400 |
 
 Every board within an interface agrees exactly, with **zero disagreement inside
 any group**. USB-Serial/JTAG now has four boards from four vendors — an
@@ -229,8 +230,8 @@ The ladder is still the right design, but for the plainer reason: **no constant
 works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes all three S2s
 four times slower than necessary. `esp32flash.py` negotiates rather than assumes.
 
-`n` is still small — ten boards, three interfaces, one of which (the bridge)
-still has a single example. Treat the table as a measured pattern, not a law.
+`n` is still small — twelve boards, three interfaces. Treat the table as a
+measured pattern, not a law.
 The pattern's strength is that boards five through ten *tested* it rather than
 producing it; its weakness is that every board in a group shares one SoC family,
 so what is measured is a *peripheral*, not an interface in the abstract.
@@ -246,6 +247,36 @@ genuinely independent specimen where the group previously had one.
 The USB-Serial/JTAG group has no such luck: all four are ESP32-S3, so the claim
 there is still "the S3's USB-Serial/JTAG peripheral caps at 230400". A C3, C6 or
 C5 would be its first real test.
+
+**The bridge group got its second specimen, and it is the strongest kind.** Until
+now the CH340 rung rested on one board, and that board was an ESP8266 — so
+"bridge caps at 230400" and "the ESP8266 caps at 230400" were the same claim
+wearing two hats. A **classic ESP32-D0WD-V3** behind the same CH340 separates
+them: different SoC, different architecture, different flash vendor (`0x68`, new
+here), a partition table where the ESP8266 has none. It capped at exactly
+230400, failing at 460800, agreeing with the ESP8266 to the rung.
+
+That specimen also fills the last gap in the chip lineup. Every other board here
+is an S3, an S2 or an ESP8266; this is the first **classic ESP32**, and the only
+one whose `chip_features` reads `Wi-Fi, BT` rather than Wi-Fi alone. Its
+`idf_target` resolved to `esp32` by longest-prefix from `esp32d0wdv3` — the same
+matcher that had to *not* collapse `esp8266ex` to `esp32`, now exercised on a
+part number that genuinely should reduce.
+
+It produced a **clean 4MB bridge timing**, which did not previously exist: 198.3s
+against 182.0s predicted, **8.9% over model**. The ESP8266's 202s carried an
+unrecorded ladder discard and was explicitly labelled a ceiling on the error
+rather than the error; with a clean figure from the same interface at the same
+size and rate, the two agree once that caveat is applied.
+
+And it set a new floor for the cost of a failed rung — **2.5s**, against 4.7s,
+7.4s and 9.5s. The spread across four measurements is now nearly fourfold, which
+is why that number is recorded per attempt rather than assumed.
+
+**What it does not yet validate:** the template table's *"classic ESP32 behind a
+bridge → `idf-base`, UART is the console"* row. This board has been identified
+and backed up, not built for or flashed. The row is now *testable* for the first
+time; it is not yet tested.
 
 Timing corroborates the mechanism. Against the 10-bits-per-byte serial framing
 model, the S3 (USB-Serial/JTAG) measured 731s vs 728 predicted, the ESP8266
