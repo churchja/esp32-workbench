@@ -1,0 +1,15 @@
+diff --git a/esp32_marauder/configs.h b/esp32_marauder/configs.h
+index 41444ed..a6eb248 100644
+--- a/esp32_marauder/configs.h
++++ b/esp32_marauder/configs.h
+@@ -2854,9 +2854,9 @@
+     #elif defined(MARAUDER_V4) || defined(MARAUDER_V6) || defined(MARAUDER_V6_1) || defined(MARAUDER_KIT)
+       #define I2C_SDA 33
+       #define I2C_SCL 22
++      #define HAS_IP5306
+       #define HAS_MAX1704X
+       #undef HAS_AXP2101
+-      #undef HAS_IP5306
+ 
+     #elif defined(MARAUDER_MINI)
+       #define I2C_SDA 33
