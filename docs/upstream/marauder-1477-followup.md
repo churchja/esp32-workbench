@@ -1,3 +1,9 @@
+<!--
+POSTED to upstream issue #1477:
+https://github.com/justcallmekoko/ESP32Marauder/issues/1477#issuecomment-5567118300
+Record of what was sent; edit upstream, not this file.
+-->
+
 Follow-up with the specific change that caused this, a correction to my own
 earlier comments, and the reason the obvious one-line fix is not safe to merge.
 
