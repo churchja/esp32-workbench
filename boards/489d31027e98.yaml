@@ -614,9 +614,19 @@ sibling_board:
       battery IC is still at 0x75 being ignored. i2c_supported is a RUNTIME probe
       result, which is what made this diagnosable at all: a build flag would have
       looked identical on screen and told us nothing.
-      Options recorded for whoever picks this up: accept it; roll back using
-      backups/489d3102a948/upstream-marauder-v1.12.1-v6_1.bin by the same SD route;
-      file it upstream; or build with HAS_IP5306 restored.
+      RESOLVED. Built with HAS_IP5306 restored and applied; see
+      battery_fix_applied. Submitted upstream as
+      https://github.com/justcallmekoko/ESP32Marauder/pull/1534 -- one file,
+      +9 -1, splitting the shared V4/V6/V6_1/KIT branch so KIT keeps its current
+      driver while V4/V6/V6.1 keep the HAS_IP5306 their own board blocks already
+      declare at configs.h:257 and :278.
+      The split needed no guesswork: KIT, V7 and V7_1 declare no battery IC at
+      all, so only the three targets that name one were changed. Preprocessor-
+      verified against master 91724fd -- V7 and V7_1 come out byte-identical, so
+      PR #1392's fix is preserved.
+      Note the PR is NOT the same change as the binary on this board. The local
+      build flips V4 and KIT to IP5306 as a side effect, which is fine here and
+      wrong for everyone else; the PR is the safe form of it.
   battery_fix_applied:
     value: custom v1.15.1 + HAS_IP5306, applied 2026-09-07, battery meter restored
     provenance: verified

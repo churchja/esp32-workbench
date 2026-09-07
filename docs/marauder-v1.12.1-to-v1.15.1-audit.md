@@ -117,6 +117,13 @@ Four independent reporters, all bisecting to v1.14.0:
 
 Both issues open. Neither was diagnosed before this work.
 
+Fix submitted as **https://github.com/justcallmekoko/ESP32Marauder/pull/1534** —
+one file, +9 -1, splitting the shared branch so KIT keeps its current driver
+while V4/V6/V6.1 keep the `HAS_IP5306` their own board blocks already declare.
+The split needed no guesswork in the end: `MARAUDER_V4` declares `HAS_IP5306` at
+`configs.h:257` and V6/V6.1 at `:278`, while KIT, V7 and V7_1 declare no IC at
+all. The source answered the question the maintainer had not.
+
 Also found: PR #1326 (v1.13.0) was an earlier attempt at this same bug and added
 a regression guard, `tools/check_battery_driver_macros.ps1`. It is not wired into
 anything — no workflow, Makefile or hook references it anywhere in the tree. A

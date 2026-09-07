@@ -5,6 +5,13 @@ Barrel". Fixes the battery meter that v1.14.0 broke on IP5306-equipped v6/v6.1
 hardware. See boards/489d31027e98.yaml `sibling_board.regression_battery_monitor`
 and upstream issue #1477.
 
+**Submitted upstream as https://github.com/justcallmekoko/ESP32Marauder/pull/1534** — though NOT
+this exact change. This directory holds the narrow fix built from the v1.15.1
+tag, which flips V4 and KIT to IP5306 as a side effect. The PR is the same fix
+expressed as a *branch split* against master, so KIT keeps what it has today.
+Correct for this board either way; only the PR version is safe for everyone
+else.
+
     marauder-v1.15.1-v6_1-ip5306.bin          1,709,360   e365927a...a042   <- the build
     marauder-v1.15.1-v6_1-stock-control.bin   1,711,408   c9b84934...4d54   <- the control
     ip5306.patch                                          the entire change
