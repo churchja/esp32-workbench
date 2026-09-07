@@ -68,7 +68,7 @@ automatically when you work in this repo.
 | `tools/validate_profiles.py` | Enforces provenance rules; `--todo` lists open research, `--stale` which profiles a re-probe would improve |
 | `tools/doctor.py` | Is it operational *here*? Versions, wiring, writability |
 | `tools/usbwatch.py` | Watches USB devices arrive and leave, and says what each identity *means* |
-| `tools/test_*.py` | 450 assertions across 9 files; no hardware needed |
+| `tools/test_*.py` | 451 assertions across 9 files; no hardware needed |
 | `smoke.sh` | One command: readiness + unit + schema + real ESP-IDF and PlatformIO builds |
 | `boards/` | One profile per physical board, keyed by eFuse MAC. **The asset — commit these** |
 | `templates/idf-base/` | **The default.** ESP-IDF starter that drives no peripheral at all |
@@ -76,8 +76,23 @@ automatically when you work in this repo.
 | `templates/pio-base/` | PlatformIO/Arduino sibling, for the Arduino display-library ecosystem |
 | `projects/` | Applications built on top of the bench, one directory each. Referenced throughout this file and previously not listed here |
 | `backups/` | Flash images (gitignored) + manifests (tracked) |
+| `firmware/` | Locally-built firmware, **binaries tracked** — deliberately inconsistent with `backups/`, see note |
 | `docs/` | Design rationale, recommendations, and the build log |
 | `.claude/skills/esp32-workbench/` | The skill and its references |
+
+**Why `firmware/` tracks binaries when `backups/` does not.** The `backups/`
+rule is that a multi-megabyte flash image is reproducible from the board it came
+off, so the manifest — what, when, which hash — is the record worth keeping.
+`firmware/marauder-v6_1-ip5306/` breaks that rule on purpose: it holds a build
+for `489d3102a948`, which has **no USB path**, so there is no board to re-read it
+from and no way to recover that unit except by putting one of these files on an
+SD card. Reproducing it needs the whole pinned toolchain.
+
+The unpatched **control** build is tracked for a different reason: it is the
+evidence that the patched one is trustworthy, and a hash alone cannot be
+re-verified against a binary nobody kept. Both are ~1.7MB and both are in git
+history permanently. That is a real cost, accepted knowingly, and named here so
+the next person does not assume `firmware/` should follow the `backups/` rule.
 
 ### Which template
 
@@ -138,11 +153,32 @@ what the tools actually recorded.
 | Seeed XIAO ESP32-S3 *(name inferred)* | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `dcb4d93b42ac` |
 | HoneyHoney Marauder Double Barrel — *2nd (Flipper-side) ESP32* | `ESP32-D0WD-V3` | `esp32` | 4MB | none | `CH340 bridge` | 5 | **230400** | `489d31027e98` |
 
-Backup and hash-verify: **all twelve**. Restore: verified on the S3 devkit, both
+Backup and hash-verify: **all twelve profiled boards**. `backups/` holds
+**thirteen** directories, and the mismatch is the point — see below. Restore:
+verified on the S3 devkit, both
 QT Pys, and the ESP8266, and performed on the LilyGo after its variant scan; the
 M5 Stamp, the Cardputer ADV and the Flipper module have not been written to.
 Console over USB: free on every S3, needs `templates/idf-usb-console` on all
 three S2s, and is UART by nature on the CH340 board.
+
+**A thirteenth board exists that cannot be backed up at all.** `489d3102a948`
+is the *other* ESP32 inside the same enclosure as `489d31027e98` — the one with
+the screen, the SD card and the battery. It has no USB data path: seven
+connection strategies across both USB-C ports, a switch, and both boot buttons
+under cold resets all reached the other unit or nothing. Its only firmware route
+is the vendor's SD-card updater, driven from its own touchscreen.
+
+So it gets a `backups/` directory holding an upstream release asset and a custom
+build — both labelled *not backups*, since they cover the app region only and
+have never been compared against its silicon — and a `sibling_board` section
+inside its twin's profile rather than a profile of its own. That is a compromise,
+not a design; `esp32ident.py` cannot reach it.
+
+The gate behaved correctly the whole time and that is worth stating precisely:
+it is keyed by eFuse MAC, it shows nothing for `489d3102a948`, and it would
+refuse to flash it. It was never wrong. It was never *asked*. A session spent
+carefully protecting one board gave its twin nothing, because a gate only guards
+boards you point it at.
 
 **The two QT Py rows are identical in every column but the profile id.** Same
 product string, VID/PID, chip, partition layout, factory images and build dates.
@@ -231,7 +267,12 @@ works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes all three S2s
 four times slower than necessary. `esp32flash.py` negotiates rather than assumes.
 
 `n` is still small — twelve boards, three interfaces. Treat the table as a
-measured pattern, not a law.
+measured pattern, not a law. The CH340 row also acquired a wrinkle worth knowing:
+one physical board can expose **two connectors with different reset wiring**. On
+`489d31027e98` the micro-USB has full auto-reset while the USB-C has EN but not
+DTR→GPIO0, so the same chip at the same baud either connects unattended or
+returns `Wrong boot mode detected (0x13)` depending purely on which socket the
+cable is in.
 The pattern's strength is that boards five through ten *tested* it rather than
 producing it; its weakness is that every board in a group shares one SoC family,
 so what is measured is a *peripheral*, not an interface in the abstract.
