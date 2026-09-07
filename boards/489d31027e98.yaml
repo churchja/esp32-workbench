@@ -138,15 +138,66 @@ identity:
       not exported). Use: idf.py set-target esp32'
 board:
   model:
-    value: generic ESP32-WROOM-class devkit (DOIT DevKit V1 compatible)
-    provenance: inferred
-    note: 'NOT identified, only bounded. CH340 bridge + 4MB + ESP32-D0WD-V3 is
-      consistent with a clone DevKit V1 and nothing in 4MB of flash names a board.
-      Deliberately NOT taken from the firmware: the running image self-reports
-      HARDWARE_NAME "Flipper Zero Dev Board Pro", which records what somebody chose
-      to flash, not what the silicon is -- and is contradicted by the CH340, since
-      the genuine Dev Board Pro does not use one. Owner reports "esp32 devkit v1
-      with an oled screen (most likely)", hedged, and the hedge is respected here.'
+    value: HoneyHoney Lab "ESP32 Marauder Double Barrel 5G" (BW16 / RTL8720DN variant)
+    provenance: community
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    note: |
+      IDENTIFIED FROM OWNER PHOTOGRAPHS, matched marking-for-marking against the
+      vendor's own product photos. The enclosure carries a label set that is not
+      generic: "433M / A / GPS" moulded across the top edge, "D" on the left, "B"
+      over "C" on the right, and "2.4G" with a dot-and-digit at each bottom corner
+      (2 left, 1 right). The vendor photo carries the identical set in the identical
+      places, plus a moulded "HoneyHoney Lab 5G" wordmark in the centre -- and a red
+      LED bleeding through the case exactly at that wordmark, which is where the
+      owner reported seeing a red glow. Same mould.
+      TWO CORRECTIONS TO EARLIER ENTRIES IN THIS FILE, recorded rather than quietly
+      overwritten:
+        * "generic devkit, model not identified" was as far as flash bytes could
+          reach, and it was the right call at the time -- but it was falsified by a
+          photograph in one step. Flash forensics bounded the board; the case
+          identified it.
+        * A stated inference that "two 2.4GHz antenna positions imply a second
+          2.4GHz radio, almost certainly nRF24-class" was WRONG. There is no nRF24.
+          The two 2.4G positions are two separate Wi-Fi radios: the ESP32's own, and
+          the BW16/RTL8720DN's. The reasoning was sound and the conclusion was not.
+      The "Double Barrel" name refers to that pair of Wi-Fi radios. A sibling product
+      substitutes an ESP32-C5 for the BW16; the owner's unit is the BW16 variant.
+      Vendor is HoneyHoney Lab / HoneyHoneyTrading (Australia); also sold on Tindie:
+      https://www.tindie.com/products/honeyhoneytrading/esp32-marauder-double-barrel-5g-c5-version/
+  hardware_target:
+    value: MARAUDER_V6
+    provenance: vendor_doc
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    note: |
+      The vendor README states, verbatim: "The hardware version of this marauder is
+      V6", and "If you would like to update the firmware, please remember to
+      download V6 version".
+      This is the whole diagnosis of the dark screen. The board is running
+      MARAUDER_DEV_BOARD_PRO. In configs.h that target has "//#define HAS_SCREEN"
+      commented out; MARAUDER_V6 sits under
+      "#if defined(MARAUDER_V6) || defined(MARAUDER_V6_1)" and defines HAS_SCREEN,
+      HAS_FULL_SCREEN, HAS_TOUCH, HAS_SD, HAS_GPS, HAS_BATTERY + HAS_IP5306 and
+      HAS_NEOPIXEL_LED -- which is a line-by-line description of this product
+      (2.8-inch touch screen, microSD, GPS, onboard battery).
+      Corroborating detail: in the v6 User_Setup, GPIO21 is TOUCH_CS. In the
+      DEV_BOARD_PRO build actually flashed, GPIO21 is GPS_TX. The two builds contend
+      for the same pin, which is what a wrong-target flash looks like from the
+      inside.
+  radios:
+    value:
+    - ESP32 Wi-Fi 2.4GHz + BT (the SoC profiled in `identity`)
+    - BW16 / RTL8720DN -- 5GHz + 2.4GHz Wi-Fi, second radio, NOT on this SoC
+    - CC1101 sub-GHz 433MHz
+    - GPS receiver
+    provenance: vendor_doc
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    note: |
+      Only the first entry is this profile's SoC. The rest share the enclosure and
+      are NOT reachable from the ESP32 -- the vendor README puts the BW16 on "UART
+      15 and 16 for communicating with Flipper", i.e. the Flipper Zero drives it,
+      not the ESP32. The CC1101 is likewise a Flipper-side peripheral over port B.
+      Recorded here so that a future session does not read "four antennas" off the
+      case and conclude this ESP32 has four radios. It has one.
   firmware_running:
     value: ESP32 Marauder v1.12.3, build target MARAUDER_DEV_BOARD_PRO
     provenance: probed
@@ -194,24 +245,162 @@ display:
       entirely, so a panel being physically present and dark is the EXPECTED
       behaviour, not a fault.'
   panel_type:
-    value: TFT (no-name, controller unknown)
-    provenance: inferred
-    note: 'Owner-reported, corrected from an earlier "OLED". Controller, resolution,
-      bus and pins all remain unknown -- see research_queue. Marauder has no I2C
-      OLED support at all, so a TFT is also the only panel type any Marauder build
-      could ever drive on this board.'
+    value: 2.8-inch touch TFT
+    provenance: vendor_doc
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    note: |
+      Vendor README: "A 2.8-inch touch screen". Supersedes the earlier
+      "TFT (no-name, controller unknown)" -- the owner's "no-name TFT" was right
+      about the panel and wrong only about it being unbranded; it is a stock part in
+      a named product.
+      The earlier correction chain is kept because it is the useful part: owner said
+      OLED -> owner looked and said TFT -> vendor doc says 2.8in touch TFT. Each step
+      was an improvement and none of them came from the flash image.
+  touch:
+    value: true
+    provenance: vendor_doc
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    note: |
+      Vendor README calls it a touch screen; MARAUDER_V6 defines HAS_TOUCH. The
+      currently-flashed DEV_BOARD_PRO target defines neither HAS_TOUCH nor
+      HAS_BUTTONS, so this unit presently has no input path at all beyond serial.
   controller:
-    value: null
+    value: ILI9341
+    provenance: community
+    source: https://github.com/justcallmekoko/ESP32Marauder/blob/master/.github/workflows/build_parallel.yml
+    note: |
+      NOT read off the panel and NOT read off this board -- inferred through a chain
+      that is checkable at every link, which is why it is community and not probed:
+      vendor says hardware version V6 -> Marauder CI maps the v6 and v6_1 targets to
+      User_Setup_og_marauder.h -> that file's only active driver define is
+      "#define ILI9341_DRIVER // OG Marauder".
+      The prior entry recorded that no display-controller string appears anywhere in
+      the 4MB image. That remains TRUE and is not contradicted: the flashed
+      DEV_BOARD_PRO build compiles TFT_eSPI out entirely, so the absence was a fact
+      about the firmware, never about the panel. Two correct findings, one of which
+      simply could not see the other.
+      Confirm against the panel's own ribbon marking before anything drives a pin.
+pinmap:
+  _source_note:
+    value: v6 target's TFT_eSPI User_Setup; not tested on THIS board
+    provenance: community
+    source: https://github.com/justcallmekoko/ESP32Marauder/blob/master/.github/workflows/build_parallel.yml
+    note: |
+      Chain, checkable at each link: vendor README says "The hardware version of this
+      marauder is V6" -> Marauder CI maps both v6 and v6_1 to
+      User_Setup_og_marauder.h -> that file's active block ("// ESP32 Marauder")
+      declares ILI9341_DRIVER and the pins below.
+      Worth knowing before any of this is used: CI builds the v6 target AND the
+      marauder_dev_board_pro target against the SAME User_Setup file. So these bus
+      pins are already what the firmware on the board would use. The difference
+      between the two builds is HAS_SCREEN, not wiring -- which is why the panel is
+      dark rather than garbled.
+      Every pin below is recorded 'unverified' on purpose, per this repo's rule that
+      paper sources never promote a pin. Three-source agreement did not promote the
+      LilyGo pins either.
+  tft_miso:
+    value: 19
     provenance: unverified
-    note: 'Nothing in 4MB of flash names a display controller. No SSD1306, SH1106,
-      ST7789, ILI9341, U8g2, Adafruit_GFX or TFT_eSPI string anywhere -- and the
-      method was control-tested on this image (arduino-lib-builder, wifi, spiffs
-      all found), so this is a real negative and not a broken search.'
-pinmap: {}
+  tft_mosi:
+    value: 23
+    provenance: unverified
+  tft_sclk:
+    value: 18
+    provenance: unverified
+  tft_cs:
+    value: 17
+    provenance: unverified
+  tft_dc:
+    value: 16
+    provenance: unverified
+    note: 'Also the NeoPixel data pin in the DEV_BOARD_PRO build currently
+      flashed. Two targets, same silicon, same pin, different jobs.'
+  tft_rst:
+    value: 5
+    provenance: unverified
+  tft_bl:
+    value: 32
+    provenance: unverified
+  touch_cs:
+    value: 21
+    provenance: unverified
+    note: 'Also GPS_TX in the DEV_BOARD_PRO build currently flashed. This
+      collision is itself evidence that the wrong target is on the board.'
 peripherals: {}
+recovery:
+  backups:
+    value: 2 independent full-flash reads, byte-identical outside nvs
+    provenance: verified
+    note: |
+      backups/489d31027e98/ holds two 4,194,304-byte images read 48 minutes apart,
+      plus the upstream release asset the app region hash-matches. tools/cmpflash.py
+      across the two reads reports 11,122 differing bytes, ALL of them inside nvs
+      (0x9000, 20KB). bootloader, partition-table, otadata, app0, app1 and spiffs are
+      byte-identical across both reads.
+      That is the part worth having: it is not "a backup exists", it is "the read
+      path is reproducible on this board", which is the assumption a restore rests
+      on. nvs differing is expected -- the firmware boots and writes RF calibration
+      and Wi-Fi state there.
+  restore_paths:
+    value: 2
+    provenance: probed
+    note: |
+      1. LOCAL, complete. Either full image restores all 4MB including bootloader,
+         partition table and nvs. This is the only path that covers 0x0-0x10000.
+      2. UPSTREAM, app region only.
+         backups/489d31027e98/upstream-marauder-v1.12.3-dev_board_pro.bin, 1,555,168
+         bytes, verified byte-identical to what is on the board. Covers 0x10000
+         onward and nothing else.
+      NO SECOND SOURCE exists for: bootloader 0x0-0x8000, partition table 0x8000,
+      otadata 0xe000, nvs 0x9000. If the local backups are lost, those four regions
+      are unrecoverable from the internet. They are small; that is exactly why they
+      are easy to forget.
+  vendor_reflash_path:
+    value: unavailable in the current firmware state
+    provenance: vendor_doc
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel-5G
+    note: |
+      THE FINDING THAT MATTERS FOR "can we reflash the Marauder code". The vendor's
+      supported update route is NOT over USB. Verbatim from the README: download the
+      V6 firmware, rename it to "update.bin", put it on the microSD card, then on the
+      device go Device > Update firmware > SD Update > Yes. It also warns "Using the
+      wrong or a corrupted firmware file may brick the device."
+      That route requires a working screen and a working menu. The flashed
+      DEV_BOARD_PRO target compiles out HAS_SCREEN, HAS_TOUCH and HAS_BUTTONS, so
+      there is no menu to navigate and no way to press Yes.
+      So it is circular: the SD updater is the way to fix the firmware, and it needs
+      the firmware fixed first. USB is currently the ONLY way back in. That does not
+      make the board unrecoverable -- USB works, esptool connects, both restore paths
+      above are intact -- but it does mean the vendor's own instructions cannot be
+      followed on this unit until a screen-capable build is on it.
+  partition_scheme_matches:
+    value: true
+    provenance: probed
+    note: |
+      Marauder CI builds the v6 target with FQBN
+      esp32:esp32:d32:PartitionScheme=min_spiffs. This board's table is app0/app1 at
+      1,966,080 bytes each with a 192KB spiffs -- that IS min_spiffs. A v6 image
+      would drop into the existing table with no repartition, and the v1.15.1 v6
+      asset is 1,710,224 bytes, comfortably inside app0.
+      Checked because a partition mismatch is the usual way this kind of flash goes
+      wrong, and it is cheap to check and expensive to discover afterwards.
+  status:
+    value: recoverable, not yet reflashed
+    provenance: probed
+    note: |
+      Nothing has been written to this board. The owner asked to ENSURE the install
+      is recoverable and that Marauder can be reflashed; both are now established as
+      facts rather than assumptions. Flashing a screen-capable build is a separate
+      decision and has not been authorised.
 research_queue:
 - field: display_present
-  status: unknown
+  status: resolved
+  resolution: 'Owner photographs identified the product; vendor documents a 2.8-inch
+    touch screen. See display.panel_type. The prescribed next step below -- "look at
+    the board, photograph both sides" -- is exactly what settled it, and it cost one
+    step where flash forensics had spent an entire session bounding the answer
+    without reaching it. Worth remembering the next time a board resists
+    identification: the cheapest instrument is a camera.'
   why: 'The owner believes an OLED is attached; the firmware provably does not drive
     one. Those are different questions and only the second is answerable from flash.
     No value is recorded on purpose -- writing "false" would convert an absence of
@@ -226,7 +415,14 @@ research_queue:
     projects/i2c-variant-scan is currently an ESP32-S3/16MB project and needs
     set-target esp32 and a 4MB flash size before it will build for this chip.'
 - field: candidate_board_family
-  status: open
+  status: resolved
+  resolution: 'HoneyHoney Lab ESP32 Marauder Double Barrel 5G. Note how the CH340
+    reasoning below performed: it correctly ruled out Heltec / TTGO / Lolin32, and
+    it correctly concluded "not an integrated-OLED family board". It then reached
+    for "hand-wired or kit-built TFT on a plain devkit" as the leading hypothesis,
+    which was wrong -- the real answer was a commercial multi-radio product that
+    happens to use a CH340. The eliminations held; the positive guess did not. That
+    asymmetry is the useful lesson, not the miss.'
   why: 'The CH340 is a strong discriminator and narrows the field usefully.
     Heltec WiFi Kit 32, TTGO LoRa32 and Wemos Lolin32 OLED -- the mainstream
     classic-ESP32 boards with an INTEGRATED OLED -- all ship CP2102, not CH340.
@@ -308,3 +504,17 @@ _diagnostics:
 
     Staying in bootloader.'
   partition_rc: 0
+verification_log:
+- date: '2026-09-06'
+  tested: [recovery.backups]
+  method: 'Two full-flash reads of all 4,194,304 bytes taken 48 minutes apart
+    (20260907T030511Z and 20260907T035323Z), each at 230400 baud after the ladder
+    discarded 460800, then compared region by region with tools/cmpflash.py against
+    this board''s own partition table.'
+  result: verified
+  note: 'Whole-image differing bytes 11,122; sum of per-region counts 11,122 (the two
+    agree, so no differing byte fell outside a named region). All 11,122 are in nvs.
+    bootloader, partition-table, otadata, app0, app1 and spiffs: 0 differing bytes
+    each. This verifies read reproducibility, which is what a restore depends on. It
+    does NOT verify that a write-back succeeds -- that claim would need an erase
+    first, and nothing has been erased.'

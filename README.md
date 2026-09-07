@@ -136,7 +136,7 @@ what the tools actually recorded.
 | Flipper Zero Wi-Fi Module v1 | `ESP32-S2` | `esp32s2` | 4MB | none | `USB-OTG` | 5 | **460800** | `3030f9837418` |
 | CH340 board (ESP8266) | `ESP8266EX` | `**none**` | 4MB | none | `CH340 bridge` | 0 | **230400** | `bcddc2246e97` |
 | Seeed XIAO ESP32-S3 *(name inferred)* | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `dcb4d93b42ac` |
-| Unknown board *(model not identified)* | `ESP32-D0WD-V3` | `esp32` | 4MB | none | `CH340 bridge` | 5 | **230400** | `489d31027e98` |
+| HoneyHoney Lab ESP32 Marauder Double Barrel 5G *(name from photo match)* | `ESP32-D0WD-V3` | `esp32` | 4MB | none | `CH340 bridge` | 5 | **230400** | `489d31027e98` |
 
 Backup and hash-verify: **all twelve**. Restore: verified on the S3 devkit, both
 QT Pys, and the ESP8266, and performed on the LilyGo after its variant scan; the
