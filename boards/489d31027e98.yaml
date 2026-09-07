@@ -183,6 +183,17 @@ board:
       DEV_BOARD_PRO build actually flashed, GPIO21 is GPS_TX. The two builds contend
       for the same pin, which is what a wrong-target flash looks like from the
       inside.
+  prior_firmware:
+    value: a larger image, ~2,102,112 bytes, identity unrecoverable
+    provenance: inferred
+    note: 'The verification_log entry of 2026-09-07 has the measurement. Short form:
+      546,944 bytes of firmware-shaped data survive past the end of the running
+      image, spanning 0x1bb9e0 to 0x21135f, which implies a prior image at
+      0x010000..0x211360 under a larger-app partition table than the one now on the
+      board. Its identifying strings sat in the overwritten first 1.55MB, so what
+      survives is code and cannot be named. Recorded because "the wrong build was
+      flashed over a working one" is otherwise only the owner''s account, and this is
+      independent physical corroboration of it.'
   radios:
     value:
     - ESP32 Wi-Fi 2.4GHz + BT (the SoC profiled in `identity`)
@@ -384,6 +395,15 @@ recovery:
       asset is 1,710,224 bytes, comfortably inside app0.
       Checked because a partition mismatch is the usual way this kind of flash goes
       wrong, and it is cheap to check and expensive to discover afterwards.
+  ota_fallback:
+    value: none
+    provenance: probed
+    note: 'app1 at 0x1f0000 is NOT a second bootable image -- its first byte is 0x21,
+      not the 0xE9 an ESP32 image header requires. Checked because "there are two OTA
+      slots" reads like a safety net and here it is not one. The 135,063 non-blank
+      bytes in it are the overflow tail of the prior firmware, not firmware of their
+      own. If app0 is destroyed there is no on-device fallback; recovery is the local
+      backup over USB or nothing.'
   status:
     value: recoverable, not yet reflashed
     provenance: probed
@@ -505,6 +525,56 @@ _diagnostics:
     Staying in bootloader.'
   partition_rc: 0
 verification_log:
+- date: '2026-09-07'
+  tested: [recovery.backups, recovery.status]
+  method: 'Read-only pre-flight. Split backup full-20260907T035323Z-4194304.bin into
+    its seven partition regions locally, then ran a single esptool 5.2.0
+    "verify-flash" at 230400 baud with --flash-mode/freq/size all "keep" (so esptool
+    could not rewrite an image header before comparing) and --after no-reset, giving
+    six address/file pairs in one connection: 0x0 bootloader, 0x8000 partition-table,
+    0xe000 otadata, 0x10000 app0, 0x1f0000 app1, 0x3d0000 spiffs. nvs was excluded on
+    purpose -- it is known to drift and would have masked the result.'
+  result: verified
+  note: 'All six regions reported "Verification successful (digest matched)"; exit 0.
+    This is the check the earlier entry could NOT make. That one compared two reads
+    of the board against each other, which proves the read path is reproducible but
+    says nothing about whether the STORED backup still matches the silicon. This one
+    reads the board and compares it to the file on disk, which is the claim a restore
+    actually depends on.
+    Worth naming as a gap in our own tooling: esp32flash.py''s "verify" subcommand
+    does not do this. It re-hashes stored files against the manifest and never opens
+    the port -- it detects local bit-rot, not divergence. Confirmed by reading
+    cmd_verify, which takes an `esp` argument and ignores it. The board-reading check
+    has to be esptool verify-flash, by hand, for now.
+    The board was deliberately left in the bootloader (--after no-reset) rather than
+    rebooted, so the firmware did not run and did not touch nvs. A power-cycle
+    returns it to normal.'
+- date: '2026-09-07'
+  tested: [board.prior_firmware]
+  method: 'Walked the ESP32 image header of app0 through its 6 segments to find the
+    true image end (1,555,168 bytes, sha256 0eded72c...843, byte-identical to the
+    official marauder_dev_board_pro release asset), then characterised every byte
+    after it. Compared entropy and printable-run density against the running image''s
+    own last 550KB as a control.'
+  result: inferred
+  note: 'NOT a clean result, and recorded as inferred rather than probed for that
+    reason. 546,944 non-blank bytes sit past the end of the running image, running
+    contiguously from 0x1bb9e0 through the end of app0 and on into app1 as far as
+    0x21135f. Entropy 7.08 bits/byte against the running image''s 6.98; 419 printable
+    runs of 8+ chars against the control''s 387. It is structurally firmware, not
+    padding and not compressed junk.
+    Implied prior image: 0x010000..0x211360, about 2,102,112 bytes. That does not fit
+    this board''s 1.875MB app0, so whatever was there ran under a DIFFERENT partition
+    table with a larger app partition -- and the current flash rewrote the table as
+    well as the app.
+    It carries none of Marauder, JustCallMeKoko, TFT_eSPI, ILI9341, HoneyHoney, BW16,
+    CC1101 or NMEA, and no esp_app_desc_t magic. That is NOT evidence it was not
+    Marauder: an ESP32 image puts rodata early and code late, so the identifying
+    strings lived in the first 1.55MB -- exactly the part that was overwritten. What
+    survives is the code tail, which is unidentifiable by construction.
+    Consistent with the account that a working, larger firmware was replaced by the
+    wrong build. It is corroboration, not proof, and it cannot be turned into proof
+    from these bytes.'
 - date: '2026-09-06'
   tested: [recovery.backups]
   method: 'Two full-flash reads of all 4,194,304 bytes taken 48 minutes apart
