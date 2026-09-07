@@ -1,3 +1,10 @@
+<!--
+POSTED 2026-09-07T06:53:27Z by churchja as a comment on upstream issue #1477:
+https://github.com/justcallmekoko/ESP32Marauder/issues/1477#issuecomment-5566281043
+Kept here as the source of what was sent. Edit the upstream comment, not this
+file, if it needs changing -- this is a record, not the live copy.
+-->
+
 Root cause, with a bisect. This is a config regression introduced in **v1.14.0**,
 and it matches your report exactly ("works up to 1.14.0 beta, not from 1.14.0
 onwards").
