@@ -176,25 +176,51 @@ board:
       identified it.
       Vendor is HoneyHoney Lab / HoneyHoneyTrading (Australia); also sold on Tindie:
       https://www.tindie.com/products/honeyhoneytrading/esp32-marauder-double-barrel-5g-c5-version/
+  unit_role:
+    value: second Marauder (Flipper-side), NOT the unit with the screen
+    provenance: probed
+    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
+    note: |
+      SETTLED BY MAC. The sibling unit's own Device Info screen reports Station MAC
+      48:9D:31:02:A9:48. This chip's eFuse MAC, re-read directly to be certain, is
+      48:9D:31:02:7E:98. Both are genuine Espressif OUI 48:9D:31 assignments, not
+      randomised locally-administered addresses, so they are two physical chips and
+      not one chip reporting a soft MAC.
+      "Double Barrel" is literal: two Marauder units in one enclosure. Every
+      observation in this file belongs to the second one.
+      Per the vendor README the second unit "utilise UART 15 and 16 for communicating
+      with Flipper" and is flashed over USB-C via ESPWebTool while holding its own
+      boot button, using files from the "Flipper Zero Wifi Dev Board" section --
+      specifically a firmware whose name includes _rev_feather.bin.
+      ONE THING DOES NOT RECONCILE, recorded open rather than smoothed over: that
+      README calls the second unit an ESP32-S2. This chip is a classic ESP32-D0WD-V3
+      behind a CH340, which an S2 cannot be -- an S2 has native USB and would
+      enumerate as usbmodem, not usbserial. Either this batch differs from the
+      documentation or the documentation is stale. Do not resolve this by assuming.
   hardware_target:
-    value: MARAUDER_V6
+    value: Flipper-side unit; NOT MARAUDER_V6
     provenance: vendor_doc
     source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
-      The vendor README states, verbatim: "The hardware version of this marauder is
-      V6", and "If you would like to update the firmware, please remember to
-      download V6 version".
-      This is the whole diagnosis of the dark screen. The board is running
-      MARAUDER_DEV_BOARD_PRO. In configs.h that target has "//#define HAS_SCREEN"
-      commented out; MARAUDER_V6 sits under
-      "#if defined(MARAUDER_V6) || defined(MARAUDER_V6_1)" and defines HAS_SCREEN,
-      HAS_FULL_SCREEN, HAS_TOUCH, HAS_SD, HAS_GPS, HAS_BATTERY + HAS_IP5306 and
-      HAS_NEOPIXEL_LED -- which is a line-by-line description of this product
-      (2.8-inch touch screen, microSD, GPS, onboard battery).
-      Corroborating detail: in the v6 User_Setup, GPIO21 is TOUCH_CS. In the
-      DEV_BOARD_PRO build actually flashed, GPIO21 is GPS_TX. The two builds contend
-      for the same pin, which is what a wrong-target flash looks like from the
-      inside.
+      RETRACTED AND REPLACED. This field previously read MARAUDER_V6, on the vendor
+      line "The hardware version of this marauder is V6". That line is true and it is
+      about the OTHER unit -- whose own screen reports "Hardware: Marauder v6.1".
+      The vendor's documented firmware for THIS unit is different: ESPWebTool at
+      esp.huhn.me, with bootloader, partitions, boot app and a firmware .bin whose
+      name includes _rev_feather.bin, taken from the "Flipper Zero Wifi Dev Board"
+      section. MARAUDER_DEV_BOARD_PRO -- what is actually flashed -- is in that
+      family. It is a Flipper Zero dev-board target for a headless unit, which is
+      what this is. So the firmware here is plausibly correct and was never shown to
+      be wrong.
+      WHAT THIS RETRACTION PREVENTED. The recommendation on file was to flash
+      esp32_marauder_..._v6.bin to "fix the dark screen". That would have put a
+      screen, touch, SD and GPS build onto a unit with none of those, replacing
+      firmware that appears to be doing its job. The pre-flight, the backup and the
+      MAC-keyed gate were all working; what was wrong was the target of the
+      reasoning, and no amount of verification catches that.
+      The GPIO21 pin collision cited here (v6 TOUCH_CS vs dev_board_pro GPS_TX) is
+      real in the source and simply does not apply: the v6 build was never meant for
+      this chip.
   prior_firmware:
     value: a larger image, ~2,102,112 bytes, identity unrecoverable
     provenance: inferred
@@ -236,157 +262,84 @@ board:
       same generic Arduino core stamp that collides across unrelated vendors. It
       identifies neither the board nor the application. The flash hash does both.'
 display:
+  present:
+    value: false
+    provenance: probed
+    note: |
+      CORRECTED 2026-09-07, and this is the largest correction in this file.
+      This profile is the SECOND ESP32 of a two-ESP32 device. It has no panel.
+      The 2.8-inch touch screen belongs to the OTHER unit -- see sibling_board.
+      What this replaces: present=true, provenance=inferred, sourced to owner visual
+      inspection, with panel_type "2.8-inch touch TFT" at vendor_doc and controller
+      ILI9341 at community. All of it described a real panel on a real board. None of
+      it described THIS board.
+      How the error worked, because it is worth more than the fact: the owner said
+      there was a screen (true, of the device), the vendor documented a 2.8-inch
+      touch screen (true, of the device), and this chip reported no display (true, of
+      the chip). Three correct statements were fused into one wrong one by an
+      unexamined assumption that the device contained a single ESP32. "Double Barrel"
+      names that assumption and contradicts it, and it was in the product title the
+      whole time.
+      The earlier finding that no display-controller string appears anywhere in this
+      board's 4MB was accurate and is now explained rather than explained away: the
+      firmware compiles TFT_eSPI out AND there is nothing for it to drive.
   driven_by_firmware:
     value: false
     provenance: probed
-    note: 'Every link in this chain is a checkable artifact, which is why it is
-      probed rather than inferred: bytes read off this board -> exact SHA-256 match
-      to release asset marauder_dev_board_pro -> in that tagged source,
-      configs.h under #ifdef MARAUDER_DEV_BOARD_PRO has "//#define HAS_SCREEN"
-      COMMENTED OUT, and Display.h guards the entire display layer plus the
-      project''s only #include <TFT_eSPI.h> behind #ifdef HAS_SCREEN. The display
-      layer compiles to nothing. Marauder also has no SSD1306/SH1106/U8g2 support
-      to compile in even if the flag were set.
-      A RED HERRING, recorded so it is not rediscovered: the image contains
-      "display=SPI TFT". That is a fixed member initializer in WiFiScan.h emitted
-      by EVERY Marauder build on every target as part of a Wigle wardriving CSV
-      header. It says nothing about this board.
-      This field says the FIRMWARE drives no panel. It does NOT say no panel is
-      attached -- flash bytes cannot see solder. See research_queue.'
-  present:
-    value: true
-    provenance: inferred
-    note: 'OWNER VISUAL INSPECTION, not a measurement -- there is no provenance
-      level for "a human looked at it", and this deliberately sits below anything
-      that would authorise driving a pin.
-      Calibration on that channel, recorded without judgement because it is useful:
-      the owner first reported an OLED and then corrected it to a TFT after
-      looking. Both reports came from the same source; the second is the one that
-      survived contact with the board.
-      Independently consistent with the firmware evidence: the Marauder build
-      flashed here (MARAUDER_DEV_BOARD_PRO) compiles its display layer out
-      entirely, so a panel being physically present and dark is the EXPECTED
-      behaviour, not a fault.'
-  panel_type:
-    value: 2.8-inch touch TFT
-    provenance: vendor_doc
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
-      Vendor README: "A 2.8-inch touch screen". Supersedes the earlier
-      "TFT (no-name, controller unknown)" -- the owner's "no-name TFT" was right
-      about the panel and wrong only about it being unbranded; it is a stock part in
-      a named product.
-      The earlier correction chain is kept because it is the useful part: owner said
-      OLED -> owner looked and said TFT -> vendor doc says 2.8in touch TFT. Each step
-      was an improvement and none of them came from the flash image.
-  touch:
-    value: true
-    provenance: vendor_doc
-    source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
-    note: |
-      Vendor README calls it a touch screen; MARAUDER_V6 defines HAS_TOUCH. The
-      currently-flashed DEV_BOARD_PRO target defines neither HAS_TOUCH nor
-      HAS_BUTTONS, so this unit presently has no input path at all beyond serial.
-  controller:
-    value: ILI9341
-    provenance: community
-    source: https://github.com/justcallmekoko/ESP32Marauder/blob/master/.github/workflows/build_parallel.yml
-    note: |
-      NOT read off the panel and NOT read off this board -- inferred through a chain
-      that is checkable at every link, which is why it is community and not probed:
-      vendor says hardware version V6 -> Marauder CI maps the v6 and v6_1 targets to
-      User_Setup_og_marauder.h -> that file's only active driver define is
-      "#define ILI9341_DRIVER // OG Marauder".
-      The prior entry recorded that no display-controller string appears anywhere in
-      the 4MB image. That remains TRUE and is not contradicted: the flashed
-      DEV_BOARD_PRO build compiles TFT_eSPI out entirely, so the absence was a fact
-      about the firmware, never about the panel. Two correct findings, one of which
-      simply could not see the other.
-      Confirm against the panel's own ribbon marking before anything drives a pin.
-pinmap:
-  _source_note:
-    value: v6 target's TFT_eSPI User_Setup; not tested on THIS board
-    provenance: community
-    source: https://github.com/justcallmekoko/ESP32Marauder/blob/master/.github/workflows/build_parallel.yml
-    note: |
-      Chain, checkable at each link: vendor README says "The hardware version of this
-      marauder is V6" -> Marauder CI maps both v6 and v6_1 to
-      User_Setup_og_marauder.h -> that file's active block ("// ESP32 Marauder")
-      declares ILI9341_DRIVER and the pins below.
-      Worth knowing before any of this is used: CI builds the v6 target AND the
-      marauder_dev_board_pro target against the SAME User_Setup file. So these bus
-      pins are already what the firmware on the board would use. The difference
-      between the two builds is HAS_SCREEN, not wiring -- which is why the panel is
-      dark rather than garbled.
-      Every pin below is recorded 'unverified' on purpose, per this repo's rule that
-      paper sources never promote a pin. Three-source agreement did not promote the
-      LilyGo pins either.
-  tft_miso:
-    value: 19
-    provenance: unverified
-  tft_mosi:
-    value: 23
-    provenance: unverified
-  tft_sclk:
-    value: 18
-    provenance: unverified
-  tft_cs:
-    value: 17
-    provenance: unverified
-  tft_dc:
-    value: 16
-    provenance: unverified
-    note: 'Also the NeoPixel data pin in the DEV_BOARD_PRO build currently
-      flashed. Two targets, same silicon, same pin, different jobs.'
-  tft_rst:
-    value: 5
-    provenance: unverified
-  tft_bl:
-    value: 32
-    provenance: unverified
-  touch_cs:
-    value: 21
-    provenance: unverified
-    note: 'Also GPS_TX in the DEV_BOARD_PRO build currently flashed. This
-      collision is itself evidence that the wrong target is on the board.'
+      Unchanged and still true: MARAUDER_DEV_BOARD_PRO has "//#define HAS_SCREEN"
+      commented out, and Display.h guards the whole display layer behind it. What
+      changed is the meaning. This was recorded as a FAULT to be fixed by flashing a
+      screen-capable build. It is not a fault. A Flipper-side unit with no panel
+      should have no display layer, and this one does not.
+pinmap: {}
 peripherals:
   serial_cli:
     value: present and responding at 115200
     provenance: verified
-    note: 'THE ONLY WORKING INTERFACE THIS BOARD CURRENTLY HAS. Sent "help" over
-      /dev/cu.usbserial-110 after letting the boot settle; got the Marauder banner
-      ("ESP32 Marauder / v1.12.3 / By: justcallmekoko") and a full command list back
-      -- channel, settings, clearlist, reboot, update -s/-w, ls, led, gpsdata, gps,
-      nmea, gpspoi, gpstracker, evilportal, karma.
-      Matters because with HAS_SCREEN, HAS_TOUCH and HAS_BUTTONS all compiled out of
-      the flashed target, this board would otherwise have no input path whatsoever.
-      It has one. The first probe of this returned only replayed boot text and looked
-      like a dead CLI -- the command had been sent while the chip was still booting.
-      Waiting out the boot changed the answer.'
+    note: 'Sent "help" over /dev/cu.usbserial-110 after letting the boot settle; got
+      the Marauder banner and the full command list back -- channel, settings,
+      clearlist, reboot, update -s/-w, ls, led, gpsdata, gps, nmea, gpspoi,
+      gpstracker, evilportal, karma.
+      Recorded first as "the only interface this board has, with screen and touch
+      compiled out", which framed it as a workaround for a broken unit. It is not a
+      workaround. A headless Flipper-side unit is driven over UART and serial IS its
+      interface. The observation was right and the framing was wrong.
+      Method note that outlived the mistake: the first probe sent "help" 0.5s after
+      opening the port and got back replayed boot text, which reads exactly like a
+      dead CLI. The board was still booting. Waiting 8s changed the answer. A probe
+      of a device that is still starting up does not return "no", it returns noise.'
   sd_card:
-    value: present in hardware, not mountable under the flashed firmware
+    value: none on this unit
     provenance: probed
-    note: 'Boot log, verbatim: "Failed to mount SD Card" then "SD Card NOT Supported".
-      Not a missing card and not a fault. MARAUDER_V6 defines SD_CS 12 with the SD
-      sharing the display bus (SD_MISO/MOSI/SCK = TFT_MISO/MOSI/SCLK); the flashed
-      MARAUDER_DEV_BOARD_PRO target looks somewhere else. The wrong build is looking
-      for the card on the wrong pins.'
+    note: 'Boot log says "Failed to mount SD Card" / "SD Card NOT Supported", and that
+      is CORRECT BEHAVIOUR, not a symptom. The microSD belongs to the sibling unit,
+      which reports it Connected at 29820MB on its own Device Info screen.
+      Previously recorded as "present in hardware, not mountable under the flashed
+      firmware" and blamed on a pin-map mismatch. Wrong unit.'
   gps:
-    value: present in hardware, not detected by the flashed firmware
+    value: not wired to this unit
     provenance: probed
-    note: 'Boot log, verbatim: "Could not detect GPS baudrate" then "GPS Not Found".
-      Same mechanism as the SD card. DEV_BOARD_PRO uses GPS_TX 21 / GPS_RX 17, but on
-      v6 hardware GPIO21 is TOUCH_CS -- the two targets contend for that pin, which
-      was already recorded in pinmap as a prediction. The boot log is that prediction
-      coming true out loud.'
-  _wrong_build_symptom_set:
-    value: 3 peripherals failing, all from the same cause
+    note: 'Boot log says "Could not detect GPS baudrate" / "GPS Not Found". Same
+      correction as the SD card: previously read as a pin conflict between v6 TOUCH_CS
+      on GPIO21 and dev_board_pro GPS_TX on GPIO21. That conflict is real in the
+      source and irrelevant here, because the v6 build was never meant for this chip.
+      Whether the GPS module is reachable from this unit at all is genuinely open --
+      the enclosure has one GPS antenna and a switch (C) that toggles its power
+      source, so which ESP32 it feeds is a wiring question this profile cannot
+      answer. See research_queue.'
+  _retracted_symptom_set:
+    value: withdrawn
     provenance: probed
-    note: 'Screen dark, SD unmountable, GPS undetected -- three independent-looking
-      faults with one cause: a build whose pin map does not match this hardware. Worth
-      recording as a set, because any one of them alone reads as a hardware fault and
-      would send someone looking for a broken part. Together they read as what they
-      are. Nothing here indicates damaged hardware.'
+    note: 'A previous entry grouped dark screen + unmountable SD + undetected GPS as
+      "three faults with one cause: a build whose pin map does not match this
+      hardware", and argued that reading them together was the insight. The grouping
+      was right and the cause was wrong. All three are the expected reports of a
+      headless Flipper-side unit that has none of those peripherals attached.
+      Kept rather than deleted because the reasoning pattern -- several independent
+      faults sharing one cause -- is sound and will be reached for again. It failed
+      here for a reason that had nothing to do with the pattern: the wrong subject.'
+
 recovery:
   backups:
     value: 2 independent full-flash reads, byte-identical outside nvs
@@ -416,23 +369,21 @@ recovery:
       are unrecoverable from the internet. They are small; that is exactly why they
       are easy to forget.
   vendor_reflash_path:
-    value: unavailable in the current firmware state
+    value: not applicable to this unit
     provenance: vendor_doc
     source: https://github.com/HoneyHoneyTeam/ESP32-Marauder-Double-Barrel
     note: |
-      THE FINDING THAT MATTERS FOR "can we reflash the Marauder code". The vendor's
-      supported update route is NOT over USB. Verbatim from the README: download the
-      V6 firmware, rename it to "update.bin", put it on the microSD card, then on the
-      device go Device > Update firmware > SD Update > Yes. It also warns "Using the
-      wrong or a corrupted firmware file may brick the device."
-      That route requires a working screen and a working menu. The flashed
-      DEV_BOARD_PRO target compiles out HAS_SCREEN, HAS_TOUCH and HAS_BUTTONS, so
-      there is no menu to navigate and no way to press Yes.
-      So it is circular: the SD updater is the way to fix the firmware, and it needs
-      the firmware fixed first. USB is currently the ONLY way back in. That does not
-      make the board unrecoverable -- USB works, esptool connects, both restore paths
-      above are intact -- but it does mean the vendor's own instructions cannot be
-      followed on this unit until a screen-capable build is on it.
+      RETRACTED. This described the microSD update route -- rename the V6 bin to
+      update.bin, then Device > Update firmware > SD Update > Yes -- and concluded it
+      was blocked here because the flashed target has no screen, no touch and no
+      buttons, making the menu unreachable. Every step of that is accurate about a
+      route that belongs to the OTHER unit, which has the screen, the menu and the
+      SD card and can follow it today.
+      The vendor's route for THIS unit is different and was in the same README:
+      ESPWebTool at esp.huhn.me over USB-C, holding this unit's own boot button, with
+      four files -- bootloader, partitions, boot app, and a firmware .bin whose name
+      contains _rev_feather.bin -- from the "Flipper Zero Wifi Dev Board" section.
+      USB was never a fallback here. It is the documented path.
   partition_scheme_matches:
     value: true
     provenance: probed
@@ -465,14 +416,85 @@ recovery:
       purely for want of a screen. It is unreachable for want of a mounted card.
       USB remains the clean path in either case.'
   status:
-    value: recoverable, not yet reflashed
+    value: recoverable, and no longer believed to need reflashing
     provenance: probed
     note: |
-      Nothing has been written to this board. The owner asked to ENSURE the install
-      is recoverable and that Marauder can be reflashed; both are now established as
-      facts rather than assumptions. Flashing a screen-capable build is a separate
-      decision and has not been authorised.
+      Nothing has been written to this board. The recoverability work stands
+      unchanged and was verified on the silicon: two full backups, a region-by-region
+      read-back match, and a second source for the app region.
+      What changed is the conclusion it was serving. There is no longer a known
+      defect to repair. This unit boots, runs Marauder v1.12.3 on a Flipper-family
+      target, answers its serial CLI, and reports absent peripherals it was never
+      wired to. If it is misbehaving in its actual role -- talking to the Flipper
+      over UART 15/16 -- that has not been tested and is the open question. Its
+      screen, SD and GPS are not evidence of anything.
+sibling_board:
+  mac:
+    value: 48:9D:31:02:A9:48
+    provenance: probed
+    note: |
+      The OTHER ESP32 in the same enclosure -- the one with the screen. Read off its
+      own Device Info page, photographed by the owner. Its AP MAC is 48:9D:31:02:A9:49,
+      the usual base+1, which is a consistency check that this is a real base MAC.
+      NOT PROFILED AND NOT BACKED UP. That is the point of recording it. This repo's
+      rule is that no board gets written to without a verified backup of THAT board,
+      keyed by eFuse MAC, and this board has neither a profile nor a backup. A whole
+      session's worth of care went into protecting 48:9D:31:02:7E:98 while its twin
+      sat in the same case, powered, unprotected, and unnoticed.
+  self_reported:
+    value: Marauder v1.12.1, Hardware "Marauder v6.1"
+    provenance: probed
+    note: |
+      From its Device Info screen, verbatim: Firmware Marauder / Version v1.12.1 /
+      Hardware Marauder v6.1 / ESP-IDF v5.5.1-710-g8410210c9a / WSL Bypass enabled /
+      SD Card Connected / SD Card Size 29820MB / Battery Monitor supported /
+      Battery Lvl 75%.
+      Note it reports v6.1, not v6, while the vendor README says to download the V6
+      version. The Marauder release ships both _v6.bin and _v6_1.bin at identical
+      size. Do not act on that difference without checking which the device wants.
+      Also note the ESP-IDF string is IDENTICAL to this profile's board -- both
+      v5.5.1-710-g8410210c9a. That is the Arduino core stamp, not an identity, and
+      here are two different chips carrying the same one. It is the same collision
+      already recorded against firmware_running, seen from a second angle.
+  status:
+    value: healthy, nothing to fix
+    provenance: probed
+    note: |
+      Screen renders, touch navigates, SD mounts at 29820MB, battery monitor reads
+      75%. Everything the earlier diagnosis was trying to repair already works, on
+      the unit that actually has the hardware.
 research_queue:
+- field: sibling_board.backup
+  status: open
+  why: 'The screen unit, MAC 48:9D:31:02:A9:48, is a second ESP32 in the same case
+    with no profile and no backup. The backup gate is keyed by eFuse MAC, so the
+    protection built for 48:9D:31:02:7E:98 does not extend to it by being nearby.
+    It is also the unit that actually carries the user-visible firmware, the SD card
+    and the battery -- the one with something to lose.'
+  how: 'Identify and back it up like any other board: connect over ITS USB path, run
+    tools/esp32ident.py, then esp32flash.py backup. Establishing which physical port
+    or button sequence reaches it is the first unknown; the vendor README describes a
+    boot button per unit.'
+  danger: 'None for identify and backup -- both are read-only. The real risk is the
+    status quo: an unbacked board sitting next to a carefully backed-up one creates a
+    false sense that the device is protected.'
+- field: flipper_uart_role
+  status: open
+  why: 'This unit exists to talk to a Flipper Zero over UART 15/16 per the vendor
+    README, which also notes it requires GPIO configuration changes from the default
+    pins. Whether the flashed build is correctly configured for that role is the only
+    question left about it, and none of the work so far touched it.'
+  how: 'The Marauder serial CLI is live and can list settings read-only. Beyond that
+    it needs a Flipper in hand to test the link end to end.'
+  danger: 'The CLI "settings" command takes a -r flag whose meaning was not
+    established. Do not run flags on it speculatively; bare listing only.'
+- field: gps_ownership
+  status: open
+  why: 'The enclosure has one GPS antenna and switch C toggles which battery powers
+    it, but which of the two ESP32s the receiver actually feeds is unrecorded. This
+    unit reports GPS Not Found; that may be correct wiring or a misconfiguration.'
+  how: 'Sibling unit''s own GPS menu, or the vendor schematic if one exists.'
+  danger: none, observation only
 - field: display_present
   status: resolved
   resolution: 'Owner photographs identified the product; vendor documents a 2.8-inch
