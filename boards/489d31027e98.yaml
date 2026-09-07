@@ -354,9 +354,10 @@ peripherals:
       "rst:0x1 (POWERON_RESET),boot:0x3 (DOWNLOAD_BOOT(UART0/UART1/SDIO...))" followed
       by "waiting for download", and a retry loop then connected and read MAC
       48:9D:31:02:7E:98.
-      Dot 2 does not. Held across 16 consecutive attempts in two runs -- one with a
-      cold power-cycle -- every single one returned boot mode 0x13, normal flash
-      boot. Whatever dot 2 does, it is not to this chip.
+      Dot 2 does not. Held across 25 consecutive attempts in two runs -- 9 warm, then
+      16 more after a cold power-cycle confirmed by the screen visibly blanking --
+      every one returned boot mode 0x13, normal flash boot, and not one connected.
+      Whatever dot 2 does, it is not to this chip.
       A GOTCHA THAT INVALIDATED SEVERAL EARLIER ATTEMPTS, recorded so it is not paid
       for twice: this device has an onboard battery. Unplugging USB does not power it
       down, so no reset edge is generated, so GPIO0 is never sampled and the boot
@@ -516,7 +517,7 @@ sibling_board:
         both dots, paperclip on insert ... nothing new
         dot 1 + cold power-cycle + loop .. CONNECTED on attempt 3 -> 7E:98
         dot 2 + loop ..................... 9/9 boot mode 0x13
-        dot 2 + cold power-cycle + loop .. 7+/7+ boot mode 0x13
+        dot 2 + cold power-cycle + loop .. 16/16 boot mode 0x13
       THE DECIDING OBSERVATION is the 0x13 itself, and it is stronger than a timeout
       would have been. esptool does not infer that number, it READS a boot message
       off the UART. Something announced SPI_FAST_FLASH_BOOT on this wire on every
