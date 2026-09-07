@@ -456,6 +456,57 @@ sibling_board:
       v5.5.1-710-g8410210c9a. That is the Arduino core stamp, not an identity, and
       here are two different chips carrying the same one. It is the same collision
       already recorded against firmware_running, seen from a second angle.
+  usb_path:
+    value: none found
+    provenance: probed
+    note: |
+      THIS UNIT COULD NOT BE REACHED OVER USB, and the attempt is recorded because a
+      negative that cost this much is worth not repeating.
+      Tried, with the unit powered and its screen live: the left-edge USB-C beside
+      the microSD slot -- enumerated, and esptool read MAC 48:9D:31:02:7E:98, the
+      OTHER unit. The top USB-C -- no USB device at all; ioreg -p IOUSB showed the
+      three root controllers with nothing beneath them, which is absence of a device
+      rather than absence of a driver. A switch flip on the left edge -- port list
+      unchanged and the MAC still 7E:98, so no UART mux.
+      The vendor documentation agrees and was saying so all along. Its USB-C flashing
+      procedure is explicitly "while holding the boot button for the second
+      Marauder"; the ONLY firmware route it gives for this unit is the microSD one --
+      rename to update.bin, then Device > Update firmware > SD Update. There is no
+      documented USB path for this unit because there appears to be none.
+      NOT yet tried and the only thing that could still overturn this: holding each
+      of the two boot dots on the back while inserting. A held boot pin brings up the
+      ROM bootloader even when firmware does not drive USB.
+  backup:
+    value: none, and none obtainable over USB
+    provenance: probed
+    note: |
+      Stated plainly rather than softened: there is no flash image of this board and
+      no way to take one without a USB data path. esp32flash.py list and verify both
+      correctly show nothing for 489d3102a948 -- checked, not assumed -- so the gate
+      still treats this board as unprotected and would refuse to flash it. That is
+      the tooling behaving correctly about a real gap, not a bug to route around.
+      What was staged instead, and what it is NOT: see upstream_firmware.
+  upstream_firmware:
+    value: backups/489d3102a948/upstream-marauder-v1.12.1-v6_1.bin
+    provenance: community
+    source: https://github.com/justcallmekoko/ESP32Marauder/releases/tag/v1.12.1
+    note: |
+      1,739,792 bytes, sha256
+      be05a98a8c211cfdd658532bc7555cfeaa40fda951a3a852021a2557d2aea270.
+      Chosen because the unit's own Device Info screen reports Version v1.12.1 and
+      Hardware Marauder v6.1, and that release still publishes a matching v6_1 asset.
+      READ THE LIMIT BEFORE RELYING ON THIS. It is not a backup and must not be
+      counted as one. It covers the app region only. It has no bootloader, no
+      partition table, no otadata, no nvs, no SPIFFS and none of this unit's own
+      settings. And unlike the equivalent file held for 48:9D:31:02:7E:98 -- which
+      was proven byte-identical to what is actually on that chip -- this one has
+      never been compared against the silicon, because the silicon cannot be read.
+      It is a plausible match inferred from a version string on a screen. Provenance
+      community, deliberately, and not usb or probed.
+      The genuinely irreplaceable data on this unit is not in flash at all: it is on
+      the 29820MB microSD, which holds Marauder's settings, captures and portal
+      assets. That card can be copied on any computer with no USB path to the ESP32
+      and no risk, and doing so backs up the part that no release asset can replace.
   status:
     value: healthy, nothing to fix
     provenance: probed
@@ -471,13 +522,22 @@ research_queue:
     protection built for 48:9D:31:02:7E:98 does not extend to it by being nearby.
     It is also the unit that actually carries the user-visible firmware, the SD card
     and the battery -- the one with something to lose.'
-  how: 'Identify and back it up like any other board: connect over ITS USB path, run
-    tools/esp32ident.py, then esp32flash.py backup. Establishing which physical port
-    or button sequence reaches it is the first unknown; the vendor README describes a
-    boot button per unit.'
+  how: 'ATTEMPTED 2026-09-07 AND NOT ACHIEVED -- see sibling_board.usb_path for what
+    was tried. Left USB-C reaches the other unit; top USB-C enumerates no USB device
+    at all; a left-edge switch flip changed nothing. Still untried, and the only
+    thing that would overturn the conclusion: hold each of the two boot dots on the
+    back while inserting the cable, on each connector in turn. Failing that, the
+    honest answer is that this unit has no USB data path and no flash backup exists
+    for it.
+    What IS achievable today and should be done instead: copy the 29820MB microSD to
+    the Mac. It holds the settings, captures and portal assets, needs no USB path to
+    the ESP32, and is the only part of this unit that no upstream release can
+    replace.'
   danger: 'None for identify and backup -- both are read-only. The real risk is the
-    status quo: an unbacked board sitting next to a carefully backed-up one creates a
-    false sense that the device is protected.'
+    status quo, and it is now measured rather than suspected: an unbacked board
+    sitting next to a carefully backed-up one creates a false sense that the device
+    is protected, and this device is the one carrying the firmware, the SD card and
+    the battery.'
 - field: flipper_uart_role
   status: open
   why: 'This unit exists to talk to a Flipper Zero over UART 15/16 per the vendor
