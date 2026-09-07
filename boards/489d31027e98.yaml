@@ -555,10 +555,22 @@ sibling_board:
       never been compared against the silicon, because the silicon cannot be read.
       It is a plausible match inferred from a version string on a screen. Provenance
       community, deliberately, and not usb or probed.
-      The genuinely irreplaceable data on this unit is not in flash at all: it is on
-      the 29820MB microSD, which holds Marauder's settings, captures and portal
-      assets. That card can be copied on any computer with no USB path to the ESP32
-      and no risk, and doing so backs up the part that no release asset can replace.
+      WHAT WAS ADVISED HERE AND IS NOW FALSIFIED. This said the irreplaceable data
+      lived on the 29820MB microSD -- settings, captures, portal assets -- and that
+      copying it was the backup worth taking. The card was then mounted and inspected.
+      It is EMPTY: a single empty directory named SCRIPTS, and nothing else. The 1.9MB
+      reported as used is macOS's own .Spotlight-V100 and .fseventsd, written by the
+      Mac at mount time, not by the Marauder.
+      So there is nothing on it to preserve, and the unit's settings are evidently in
+      its on-chip NVS rather than on the card -- which puts them behind the same
+      missing USB path as everything else. The recommendation was reasonable and it
+      was still a guess about contents dressed as a fact, made without looking. One
+      mount settled it in ten seconds.
+      A SIDE EFFECT WORTH KNOWING given how careful the rest of this repo is about not
+      writing to things: macOS writes to removable media on mount, unprompted. This
+      card is no longer byte-identical to what the Marauder left on it. Here that cost
+      nothing because the card was blank, but a forensic image of an SD card must be
+      taken before macOS ever sees it, not after.
   status:
     value: healthy, nothing to fix
     provenance: probed
@@ -581,10 +593,10 @@ research_queue:
     back while inserting the cable, on each connector in turn. Failing that, the
     honest answer is that this unit has no USB data path and no flash backup exists
     for it.
-    What IS achievable today and should be done instead: copy the 29820MB microSD to
-    the Mac. It holds the settings, captures and portal assets, needs no USB path to
-    the ESP32, and is the only part of this unit that no upstream release can
-    replace.'
+    The SD card was proposed as the achievable alternative and then checked: it is
+    empty apart from an empty SCRIPTS directory. There is nothing on it to back up,
+    so no fallback remains. This unit currently has NO backup of any kind and no
+    method to obtain one.'
   danger: 'None for identify and backup -- both are read-only. The real risk is the
     status quo, and it is now measured rather than suspected: an unbacked board
     sitting next to a carefully backed-up one creates a false sense that the device
