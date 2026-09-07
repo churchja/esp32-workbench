@@ -136,9 +136,85 @@ identity:
     note: 'Derived from probed chip_family by longest-prefix match (''esp32d0wdv3'' -> ''esp32''; set-target
       does not accept the full part number). Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
       not exported). Use: idf.py set-target esp32'
+board:
+  model:
+    value: generic ESP32-WROOM-class devkit (DOIT DevKit V1 compatible)
+    provenance: inferred
+    note: 'NOT identified, only bounded. CH340 bridge + 4MB + ESP32-D0WD-V3 is
+      consistent with a clone DevKit V1 and nothing in 4MB of flash names a board.
+      Deliberately NOT taken from the firmware: the running image self-reports
+      HARDWARE_NAME "Flipper Zero Dev Board Pro", which records what somebody chose
+      to flash, not what the silicon is -- and is contradicted by the CH340, since
+      the genuine Dev Board Pro does not use one. Owner reports "esp32 devkit v1
+      with an oled screen (most likely)", hedged, and the hedge is respected here.'
+  firmware_running:
+    value: ESP32 Marauder v1.12.3, build target MARAUDER_DEV_BOARD_PRO
+    provenance: probed
+    source: https://github.com/justcallmekoko/ESP32Marauder/releases/download/v1.12.3/esp32_marauder_v1_12_3_20260622_marauder_dev_board_pro.bin
+    note: 'Identified by EXACT SHA-256, not by a version string. The app image read
+      off this board -- flash 0x010000, 1,555,168 bytes, ESP32 image header walked
+      through 6 segments to find the true end -- hashes to
+      0eded72c4396930f06814362375ef368192b79ebf3a4d8b8ffe2b05c1e9d6843, which is
+      byte-identical to the official release asset of the same size. Both halves
+      checked independently.
+      Worth contrasting with the LilyGo entry in README: esp_app_desc_t here says
+      only project "arduino-lib-builder", IDF v5.5.1-710, built 2025-11-12 -- the
+      same generic Arduino core stamp that collides across unrelated vendors. It
+      identifies neither the board nor the application. The flash hash does both.'
+display:
+  driven_by_firmware:
+    value: false
+    provenance: probed
+    note: 'Every link in this chain is a checkable artifact, which is why it is
+      probed rather than inferred: bytes read off this board -> exact SHA-256 match
+      to release asset marauder_dev_board_pro -> in that tagged source,
+      configs.h under #ifdef MARAUDER_DEV_BOARD_PRO has "//#define HAS_SCREEN"
+      COMMENTED OUT, and Display.h guards the entire display layer plus the
+      project''s only #include <TFT_eSPI.h> behind #ifdef HAS_SCREEN. The display
+      layer compiles to nothing. Marauder also has no SSD1306/SH1106/U8g2 support
+      to compile in even if the flag were set.
+      A RED HERRING, recorded so it is not rediscovered: the image contains
+      "display=SPI TFT". That is a fixed member initializer in WiFiScan.h emitted
+      by EVERY Marauder build on every target as part of a Wigle wardriving CSV
+      header. It says nothing about this board.
+      This field says the FIRMWARE drives no panel. It does NOT say no panel is
+      attached -- flash bytes cannot see solder. See research_queue.'
+  controller:
+    value: null
+    provenance: unverified
+    note: 'Nothing in 4MB of flash names a display controller. No SSD1306, SH1106,
+      ST7789, ILI9341, U8g2, Adafruit_GFX or TFT_eSPI string anywhere -- and the
+      method was control-tested on this image (arduino-lib-builder, wifi, spiffs
+      all found), so this is a real negative and not a broken search.'
 pinmap: {}
 peripherals: {}
 research_queue:
+- field: display_present
+  status: unknown
+  why: 'The owner believes an OLED is attached; the firmware provably does not drive
+    one. Those are different questions and only the second is answerable from flash.
+    No value is recorded on purpose -- writing "false" would convert an absence of
+    evidence into a recorded negative for the next session to build on.'
+  how: 'Look at the board. A photograph of both sides settles display presence, the
+    silkscreen vendor mark (ideaspark / DOIT / HW-394) and the bridge IC marking at
+    once, with no power-state change and no writes. Only if a panel is visibly
+    present but the board is unmarked is an I2C scan worth the trip.'
+  danger: 'An I2C scan overwrites app0 and destroys the Marauder install. Two
+    independent restore paths exist -- the local full-image backup, and the official
+    release asset the image hash-matches -- so it is reversible, but it is a write.
+    projects/i2c-variant-scan is currently an ESP32-S3/16MB project and needs
+    set-target esp32 and a 4MB flash size before it will build for this chip.'
+- field: candidate_board_family
+  status: open
+  why: 'The CH340 is a strong discriminator and narrows the field usefully.
+    Heltec WiFi Kit 32, TTGO LoRa32 and Wemos Lolin32 OLED -- the mainstream
+    classic-ESP32 boards with an INTEGRATED OLED -- all ship CP2102, not CH340.
+    That leaves hand-wired OLED on a plain devkit, or an ideaspark-class board
+    which puts a soldered OLED on a DevKit V1 layout and does use CH340.'
+  how: 'Silkscreen, or an I2C scan on GPIO21/22 (the pins both candidates would use).'
+  danger: 'GPIO21 is GPS_TX in the currently-flashed build AND the most likely SDA.
+    GPIO16 is the NeoPixel data pin here AND the OLED RST on Heltec/TTGO layouts.
+    Do not drive either on an assumption.'
 - field: display
   status: unknown
   why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
