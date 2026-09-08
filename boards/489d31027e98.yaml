@@ -664,7 +664,16 @@ sibling_board:
       the unit that actually has the hardware.
 research_queue:
 - field: sibling_board.backup
-  status: open
+  status: resolved
+  resolution: 'RESOLVED AS IMPOSSIBLE, not as done. No backup of 48:9D:31:02:A9:48
+    exists or can be taken: that unit has no USB data path, established across seven
+    connection strategies including both boot buttons under cold resets. Its microSD
+    was copied twice and holds nothing but scan-log stubs.
+    Marked resolved deliberately, because leaving it "open" advertises a lead that
+    is not there and would cost the next session what it cost this one. The
+    unbackable board is now a recorded FACT of this bench rather than an outstanding
+    task -- see README, which states it alongside the twelve-profiles count.
+    If a future firmware or a hardware revision ever exposes that UART, reopen it.'
   why: 'The screen unit, MAC 48:9D:31:02:A9:48, is a second ESP32 in the same case
     with no profile and no backup. The backup gate is keyed by eFuse MAC, so the
     protection built for 48:9D:31:02:7E:98 does not extend to it by being nearby.
@@ -747,7 +756,16 @@ research_queue:
     GPIO16 is the NeoPixel data pin here AND the OLED RST on Heltec/TTGO layouts.
     Do not drive either on an assumption.'
 - field: display
-  status: unknown
+  status: resolved
+  resolution: 'MOOT FOR THIS BOARD. It is the Flipper-side ESP32 of a two-ESP32
+    device and has no panel attached -- see display.present. The 2.8-inch ILI9341
+    touch TFT belongs to the sibling at 48:9D:31:02:A9:48, whose controller is
+    known from the v6_1 User_Setup and is now confirmed in the strongest available
+    way: that unit runs a build which drives it, and the screen renders.
+    This entry was generic text emitted by esp32ident.py for every profile, and it
+    sat here for a session shaping a question that could not be answered because
+    it was about the wrong board. Boilerplate that survives contact with a
+    corrected understanding is worse than no entry -- it looks like an open lead.'
   why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
     records them.
   how: Vendor schematic for the ESP32-D0WD-V3 board carrying this display. Then check for an existing
@@ -755,14 +773,33 @@ research_queue:
     and espressif/esp-bsp, which already encodes panel type, offsets and pins for many vendor boards.
     Confirm the controller part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
 - field: pinmap
-  status: unknown
+  status: resolved
+  resolution: 'Answered as far as it can be for this unit, and the display half is
+    moot -- there is no panel here. What IS established: GPIO0 is reachable via the
+    rear pinhole marked dot 1, verified by holding it through a cold power-cycle and
+    reading "boot:0x3 (DOWNLOAD_BOOT)" off the ROM banner. Dot 2 does not affect
+    this chip -- 25 attempts, all boot mode 0x13. Per the vendor README the Flipper
+    link uses UART 15 and 16.
+    The pinmap key is deliberately left EMPTY rather than filled with the v6 display
+    pins it briefly held. Those were real pins for a real board and not this one;
+    recording them here would be a trap for the next session.
+    Remaining unknowns are the Flipper UART wiring in practice -- tracked separately
+    under flipper_uart_role, which is the honest place for it.'
   why: GPIO assignment is a PCB routing decision, invisible to probing.
   how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
     -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
     the vendor. Mark every pin 'unverified' until a physical test confirms it.
   danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
 - field: power
-  status: unknown
+  status: resolved
+  resolution: 'MOOT FOR THIS BOARD. The battery and its charge IC are on the sibling,
+    not here. That unit carries an IP5306 at I2C 0x75 -- established twice over: its
+    Device Info reported "Battery Monitor: supported" under firmware that probes
+    0x75, and after the fix it reads a QUARTER value (50%), which only the IP5306
+    ladder can produce.
+    No ADC divider ratio is needed for either board. The IP5306 is read over I2C,
+    not through an analog divider, so the magic number this entry warns about does
+    not exist in this design.'
   why: Battery connector, charge IC, and ADC divider ratio are board-level.
   how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
     corrupts every battery reading.
