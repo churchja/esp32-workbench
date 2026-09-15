@@ -1,3 +1,10 @@
+<!--
+POSTED 2026-09-15T10:00:30Z by churchja on upstream PR #1534:
+https://github.com/justcallmekoko/ESP32Marauder/pull/1534#issuecomment-5678286189
+Verified identical to this file by reading it back from the API.
+Record of what was sent; edit upstream, not this file.
+-->
+
 Quick update, since v1.16.0 has shipped.
 
 **v1.16.0 still has the problem.** The shared branch is unchanged, now at
