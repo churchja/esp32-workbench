@@ -16,6 +16,31 @@ else.
     marauder-v1.15.1-v6_1-stock-control.bin   1,711,408   c9b84934...4d54   <- the control
     ip5306.patch                                          the entire change
 
+## Before updating this board: do not flash stock v1.16.0
+
+v1.16.0 (released 2026-09-08) **still has the battery bug**. The shared battery
+branch is unchanged, now at `configs.h:2879`, and
+`gcc -E -dM -x c++ -D<TARGET>` still resolves `MARAUDER_V4`, `MARAUDER_V6` and
+`MARAUDER_V6_1` to `HAS_MAX1704X`. Flashing the official
+`esp32_marauder_v1_16_0_20260908_v6_1.bin` onto this board would bring back
+"Battery Monitor: not supported". Checked 2026-09-15, eight days after #1534 was
+opened. Nothing merged since touches the battery branch; the only `configs.h`
+commit adds `T_DONGLE_TFT_CS_PIN`.
+
+If you want v1.16.0, rebuild it with the fix. `ip5306.patch` applies cleanly to
+v1.16.0's `configs.h`. That was checked with `patch --dry-run`, not assumed. Two
+things were NOT checked and must be redone before trusting a v1.16.0 build:
+
+  * the build recipe below was taken from v1.15.1's CI. Re-read
+    `.github/workflows/build_parallel.yml` at the new tag, because the core
+    version and library versions may have changed.
+  * the control build was only compared against v1.15.1. Repeat it against
+    v1.16.0's own published binary (1,778,240 bytes, sha256 `23b14a15...7b41`)
+    before flashing anything patched.
+
+Until then, stay on the build in this directory, or wait for #1534 or an
+equivalent upstream fix.
+
 ## Why a control build is here
 
 The patched binary on its own is unfalsifiable: of course it compiled, only a
