@@ -1,0 +1,25 @@
+{
+  "mac": "e4:b0:63:41:34:d0",
+  "backups": [
+    {
+      "file": "full-20261012T025637Z-4194304.bin",
+      "sha256": "3d86b8918ce04318b8a42b688dd78c127ffffc96c79dfb438d0b0d46895aaf9f",
+      "bytes": 4194304,
+      "app_elf_sha256": "dc2f22458627612af6324164512a0912e3831a0faa4cf5500f0ee44c7f7b759d",
+      "created": "2026-10-12T02:56:52.256602+00:00",
+      "chip": "ESP32-C6FH4 (QFN32) (revision v0.1)",
+      "read_seconds": 14.9,
+      "ladder_seconds": 14.9,
+      "attempts": [
+        {
+          "baud": 460800,
+          "seconds": 14.9,
+          "ok": true
+        }
+      ],
+      "baud": 460800,
+      "esptool_version": "5.2.0"
+    }
+  ],
+  "chip": "ESP32-C6FH4 (QFN32) (revision v0.1)"
+}

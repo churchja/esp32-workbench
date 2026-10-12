@@ -1,0 +1,221 @@
+schema_version: 1
+profile_id: e4b0634134d0
+identified_at: '2026-10-12T02:56:34.361350+00:00'
+port_seen_on: /dev/cu.usbmodem1101
+identity:
+  usb_vid:
+    value: '0x303a'
+    provenance: usb
+  usb_pid:
+    value: '0x1001'
+    provenance: usb
+  usb_serial_number:
+    value: E4:B0:63:41:34:D0
+    provenance: usb
+  usb_product:
+    value: USB JTAG/serial debug unit
+    provenance: usb
+    note: USB product string as announced in THIS mode. Board-level names appear in app mode; ROM download
+      mode usually reports just the chip.
+  usb_interface:
+    value: Espressif USB JTAG/serial debug unit
+    provenance: usb
+  usb_interface_kind:
+    value: native
+    provenance: usb
+    note: native = the SoC implements USB directly (supports USB-JTAG debug, USB CDC console, and can
+      re-enumerate after reset). bridge = a separate UART chip; the SoC has no USB peripheral.
+  usb_vendor:
+    value: Espressif
+    provenance: usb
+  chip:
+    value: ESP32-C6FH4 (QFN32) (revision v0.1)
+    provenance: probed
+  chip_family:
+    value: ESP32-C6FH4
+    provenance: probed
+  chip_revision:
+    value: '0.1'
+    provenance: probed
+  chip_features:
+    value:
+    - Wi-Fi 6
+    - BT 5 (LE)
+    - IEEE802.15.4
+    - Single Core + LP Core
+    - 160MHz
+    - Embedded Flash 4MB
+    provenance: probed
+    note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
+      of the vendor listing.
+  crystal:
+    value: 40MHz
+    provenance: probed
+  usb_mode:
+    value: USB-Serial/JTAG
+    provenance: probed
+    note: Reported by esptool 5.x from the chip itself; corroborates the USB VID/PID reading of native
+      vs bridge.
+  mac:
+    value: e4:b0:63:41:34:d0
+    provenance: probed
+    note: Base MAC from eFuse (read from the 'BASE MAC' line) -- globally unique per board. Used as the
+      profile and backup key so two boards of the same model never collide.
+  flash_manufacturer_id:
+    value: '0x20'
+    provenance: probed
+  flash_device_id:
+    value: '0x4016'
+    provenance: probed
+  flash_size:
+    value: 4MB
+    provenance: probed
+    note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
+      wrong about this.
+  partitions:
+    value:
+    - label: nvs
+      type: data
+      subtype: nvs
+      offset: '0x9000'
+      offset_int: 36864
+      size: '0x5000'
+      size_int: 20480
+      size_human: 20KB
+      encrypted: false
+    - label: otadata
+      type: data
+      subtype: ota
+      offset: '0xe000'
+      offset_int: 57344
+      size: '0x2000'
+      size_int: 8192
+      size_human: 8KB
+      encrypted: false
+    - label: app0
+      type: app
+      subtype: ota_0
+      offset: '0x10000'
+      offset_int: 65536
+      size: '0x200000'
+      size_int: 2097152
+      size_human: 2MB
+      encrypted: false
+    - label: spiffs
+      type: data
+      subtype: spiffs
+      offset: '0x210000'
+      offset_int: 2162688
+      size: '0x1e0000'
+      size_int: 1966080
+      size_human: 1.875MB
+      encrypted: false
+    - label: coredump
+      type: data
+      subtype: coredump
+      offset: '0x3f0000'
+      offset_int: 4128768
+      size: '0x10000'
+      size_int: 65536
+      size_human: 64KB
+      encrypted: false
+    provenance: probed
+    note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
+      it over any assumed default.
+  partition_table_md5:
+    value: 8a3e9904f395308f836d4ae436862beb
+    provenance: probed
+  applications:
+    value:
+    - secure_version: 0
+      app_version: 6683a0d
+      project_name: arduino-lib-builder
+      build_time: '12:27:36'
+      build_date: Jun 24 2024
+      idf_version: v5.1.4-358-gbd2b9390ef-dirty
+      app_elf_sha256: dc2f22458627612af6324164512a0912e3831a0faa4cf5500f0ee44c7f7b759d
+      partition: app0
+    provenance: probed
+    note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
+      and which SDK built it.
+  idf_target:
+    value: esp32c6
+    provenance: inferred
+    note: 'Derived from probed chip_family by longest-prefix match (''esp32c6fh4'' -> ''esp32c6''; set-target
+      does not accept the full part number). Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
+      not exported). Use: idf.py set-target esp32c6'
+pinmap: {}
+peripherals: {}
+research_queue:
+- field: display
+  status: unknown
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Vendor schematic for the ESP32-C6FH4 board carrying this display. Then check for an existing BSP
+    component -- search the ESP Component Registry (components.espressif.com) for the board name, and
+    espressif/esp-bsp, which already encodes panel type, offsets and pins for many vendor boards. Confirm
+    the controller part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+- field: pinmap
+  status: unknown
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+- field: power
+  status: unknown
+  why: Battery connector, charge IC, and ADC divider ratio are board-level.
+  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
+    corrupts every battery reading.
+_diagnostics:
+  esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
+  esptool_version: 5.2.0
+  esptool_dialect: hyphenated (5.x)
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1791773792
+  flash_id_rc: 0
+  flash_id_output: 'esptool v5.2.0
+
+    Serial port /dev/cu.usbmodem1101:
+
+    Connecting...
+
+    Detecting chip type... ESP32-C6
+
+    Connected to ESP32-C6 on /dev/cu.usbmodem1101:
+
+    Chip type:          ESP32-C6FH4 (QFN32) (revision v0.1)
+
+    Features:           Wi-Fi 6, BT 5 (LE), IEEE802.15.4, Single Core + LP Core, 160MHz, Embedded Flash
+    4MB
+
+    Crystal frequency:  40MHz
+
+    USB mode:           USB-Serial/JTAG
+
+    MAC:                e4:b0:63:ff:fe:41:34:d0
+
+    BASE MAC:           e4:b0:63:41:34:d0
+
+    MAC_EXT:            ff:fe
+
+
+    Uploading stub flasher...
+
+    Running stub flasher...
+
+    Stub flasher running.
+
+
+    Flash Memory Information:
+
+    =========================
+
+    Manufacturer: 20
+
+    Device: 4016
+
+    Detected flash size: 4MB
+
+
+    Staying in bootloader.'
+  partition_rc: 0
