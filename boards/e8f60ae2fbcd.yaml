@@ -142,13 +142,15 @@ identity:
 board:
   model:
     value: M5Stack Tab5
-    provenance: inferred
+    provenance: vendor_doc
+    source: https://docs.m5stack.com/en/core/Tab5
     note: |
-      Not read off a label. Two independent facts agree: the factory app read off
-      this chip calls itself project "m5stack_tab5" (probed), and M5Stack's spec
-      page lists an ESP32-P4 with 16MB flash, which is what the chip reports.
-      Inferred rather than vendor_doc because nothing ties this unit's MAC to the
-      product, only its firmware and specs. A photo of the case would settle it.
+      Confirmed by the owner, who has the device in hand, on 2026-10-16. That closes
+      the gap the first entry named: the vendor page describes the product, and the
+      owner ties this unit to it. Two facts read off the chip agree with both: the
+      factory app calls itself project "m5stack_tab5", and the chip and 16MB flash
+      match the spec page. Raised from inferred; there is no provenance level for
+      an owner reading the label, so vendor_doc is the closest honest rung.
   coprocessor:
     value: ESP32-C6-MINI-1U, connected to the P4 over SDIO2
     provenance: vendor_doc
@@ -160,10 +162,18 @@ board:
       its own and is not covered by backups/e8f60ae2fbcd/. The backup step is keyed
       by eFuse MAC and cannot see it. This is the same shape as the Double Barrel
       (see boards/489d31027e98.yaml sibling_board), recorded here up front.
-      Unlike the Double Barrel, the vendor publishes a recovery path for it: the
-      spec page links a "Tab5 Internal Wi-Fi Module Restore Factory Firmware"
-      guide. That guide was not read, so whether it needs anything beyond USB is
-      unknown.
+      Unlike the Double Barrel's screen unit, this chip IS reachable, just not
+      through USB-C. M5Stack's restore guide (https://docs.m5stack.com/en/guide/tab5/c6_wifi_restore, read
+      2026-10-16) says the PCB has "a reserved download interface for the ESP32-C6
+      module", used through a USB-TTL adapter, ideally M5Stack's ESP32 Downloader.
+      The guide's connection photo shows the Tab5 with its back cover removed and
+      the downloader pressed onto a 6-pin interface beside the C6 module, pins
+      labelled GND, G0, EN, TXD, RXD, 3.3V. The pin mapping is in that photo only:
+      https://m5stack-doc.oss-cn-shenzhen.aliyuncs.com/1132/C145_Restore_Factory_WiFi_Firmware_02.jpg
+      Vendor image: M5Burner, TAB5 section, "Tab5 ESP32-C6 Wi-Fi SDIO", official,
+      v1.4.1 published 2025-06-06 in the guide's screenshot (may be newer now).
+      The guide does not say whether the P4's firmware has to change; the
+      procedure goes straight to the C6's own pins, so it appears not to.
   firmware_running:
     value: m5stack_tab5 639d9cc, IDF v5.4.2, built Mar 25 2026 (factory)
     provenance: probed
@@ -193,12 +203,16 @@ research_queue:
 - field: coprocessor_backup
   status: open
   why: 'The ESP32-C6 co-processor has its own firmware and is not covered by this
-    board''s backup. It is not on USB, so the bench cannot read it directly.'
-  how: 'Read the "Tab5 Internal Wi-Fi Module Restore Factory Firmware" guide linked
-    from the M5Stack spec page. If the vendor image is published, that covers
-    recovery. A byte-exact backup would need a path to the C6 through the P4.'
-  danger: 'None for reading. Do not flash the C6 without first knowing how the
-    vendor restore works.'
+    board''s backup. It is not on USB-C, so the bench has not read it.'
+  how: 'Guide read 2026-10-16. Recovery is covered without a backup: M5Burner
+    publishes "Tab5 ESP32-C6 Wi-Fi SDIO" (v1.4.1 in the guide). A byte-exact backup
+    is also possible: remove the back cover, connect a 3.3V USB-TTL adapter (GND,
+    G0, EN, TXD, RXD, 3.3V) to the C6 download interface beside the module, then
+    run esptool read_flash through that adapter. The guide uses M5Stack''s ESP32
+    Downloader; any adapter with those six lines should do.'
+  danger: 'Reading is safe once connected. The risk is physical: the cover comes
+    off and a probe sits on live pads, so a slip across 3.3V and GND can damage
+    the board. Check the pin order against the guide photo before powering it.'
 - field: display
   status: unknown
   why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC

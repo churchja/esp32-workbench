@@ -153,7 +153,7 @@ what the tools actually recorded.
 | Seeed XIAO ESP32-S3 *(name inferred)* | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `dcb4d93b42ac` |
 | HoneyHoney Marauder Double Barrel — *2nd (Flipper-side) ESP32* | `ESP32-D0WD-V3` | `esp32` | 4MB | none | `CH340 bridge` | 5 | **230400** | `489d31027e98` |
 | ESP32-C6 devkit *(model not identified)* | `ESP32-C6FH4` | `esp32c6` | 4MB | none | `USB-Serial/JTAG` | 5 | **460800** | `e4b0634134d0` |
-| M5Stack Tab5 *(name from factory firmware)* | `ESP32-P4` | `esp32p4` | **16MB** | not probed *(32MB per vendor)* | `USB-Serial/JTAG` | 5 | **460800** | `e8f60ae2fbcd` |
+| M5Stack Tab5 *(owner-confirmed)* | `ESP32-P4` | `esp32p4` | **16MB** | not probed *(32MB per vendor)* | `USB-Serial/JTAG` | 5 | **460800** | `e8f60ae2fbcd` |
 
 Backup and hash-verify: **all fourteen profiled boards**. `backups/` holds
 **thirteen** directories, and the mismatch is the point — see below. Restore:
