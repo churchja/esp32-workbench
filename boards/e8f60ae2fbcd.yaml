@@ -209,7 +209,9 @@ research_queue:
     is also possible: remove the back cover, connect a 3.3V USB-TTL adapter (GND,
     G0, EN, TXD, RXD, 3.3V) to the C6 download interface beside the module, then
     run esptool read_flash through that adapter. The guide uses M5Stack''s ESP32
-    Downloader; any adapter with those six lines should do.'
+    Downloader; any adapter with those six lines should do.
+    Adapter ordered 2026-10-16 (M5Stack ESP32 Downloader Kit, A105, from
+    AliExpress). Waiting on delivery; nothing else blocks this.'
   danger: 'Reading is safe once connected. The risk is physical: the cover comes
     off and a probe sits on live pads, so a slip across 3.3V and GND can damage
     the board. Check the pin order against the guide photo before powering it.'
