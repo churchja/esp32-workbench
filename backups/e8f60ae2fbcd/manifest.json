@@ -1,0 +1,25 @@
+{
+  "mac": "e8:f6:0a:e2:fb:cd",
+  "backups": [
+    {
+      "file": "full-20261016T182819Z-16777216.bin",
+      "sha256": "a260eda93e4e5ddc1d3abddd361b1eb326c07d4248b67d1b493feba057fde231",
+      "bytes": 16777216,
+      "app_elf_sha256": "dacde620e43bd3387b756968510ccf8cccffff8a9b9d4662857b136d7e44b5e3",
+      "created": "2026-10-16T18:29:30.859521+00:00",
+      "chip": "ESP32-P4 (revision v1.3)",
+      "read_seconds": 71.1,
+      "ladder_seconds": 71.1,
+      "attempts": [
+        {
+          "baud": 460800,
+          "seconds": 71.1,
+          "ok": true
+        }
+      ],
+      "baud": 460800,
+      "esptool_version": "5.2.0"
+    }
+  ],
+  "chip": "ESP32-P4 (revision v1.3)"
+}

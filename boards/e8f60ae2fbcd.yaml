@@ -1,0 +1,268 @@
+schema_version: 1
+profile_id: e8f60ae2fbcd
+identified_at: '2026-10-16T18:28:15.914344+00:00'
+port_seen_on: /dev/cu.usbmodem1101
+identity:
+  usb_vid:
+    value: '0x303a'
+    provenance: usb
+  usb_pid:
+    value: '0x1001'
+    provenance: usb
+  usb_serial_number:
+    value: E8:F6:0A:E2:FB:CD
+    provenance: usb
+  usb_product:
+    value: USB JTAG/serial debug unit
+    provenance: usb
+    note: USB product string as announced in THIS mode. Board-level names appear in app mode; ROM download
+      mode usually reports just the chip.
+  usb_interface:
+    value: Espressif USB JTAG/serial debug unit
+    provenance: usb
+  usb_interface_kind:
+    value: native
+    provenance: usb
+    note: native = the SoC implements USB directly (supports USB-JTAG debug, USB CDC console, and can
+      re-enumerate after reset). bridge = a separate UART chip; the SoC has no USB peripheral.
+  usb_vendor:
+    value: Espressif
+    provenance: usb
+  chip:
+    value: ESP32-P4 (revision v1.3)
+    provenance: probed
+  chip_family:
+    value: ESP32-P4
+    provenance: probed
+  chip_revision:
+    value: '1.3'
+    provenance: probed
+  chip_features:
+    value:
+    - Dual Core + LP Core
+    - 400MHz
+    provenance: probed
+    note: Read from eFuse. Authoritative for which radios and embedded memory the silicon has, regardless
+      of the vendor listing.
+  crystal:
+    value: 40MHz
+    provenance: probed
+  usb_mode:
+    value: USB-Serial/JTAG
+    provenance: probed
+    note: Reported by esptool 5.x from the chip itself; corroborates the USB VID/PID reading of native
+      vs bridge.
+  mac:
+    value: e8:f6:0a:e2:fb:cd
+    provenance: probed
+    note: Base MAC from eFuse (read from the 'MAC' line) -- globally unique per board. Used as the profile
+      and backup key so two boards of the same model never collide.
+  flash_manufacturer_id:
+    value: '0x46'
+    provenance: probed
+  flash_device_id:
+    value: '0x4018'
+    provenance: probed
+  flash_size:
+    value: 16MB
+    provenance: probed
+    note: Detected from the SPI flash chip itself, not a build config. Vendor listings are frequently
+      wrong about this.
+  partitions:
+    value:
+    - label: nvs
+      type: data
+      subtype: nvs
+      offset: '0x9000'
+      offset_int: 36864
+      size: '0x6000'
+      size_int: 24576
+      size_human: 24KB
+      encrypted: false
+    - label: phy_init
+      type: data
+      subtype: phy
+      offset: '0xf000'
+      offset_int: 61440
+      size: '0x1000'
+      size_int: 4096
+      size_human: 4KB
+      encrypted: false
+    - label: factory
+      type: app
+      subtype: factory
+      offset: '0x10000'
+      offset_int: 65536
+      size: '0xa00000'
+      size_int: 10485760
+      size_human: 10MB
+      encrypted: false
+    - label: human_face_det
+      type: data
+      subtype: spiffs
+      offset: '0xa10000'
+      offset_int: 10551296
+      size: '0x64000'
+      size_int: 409600
+      size_human: 400KB
+      encrypted: false
+    - label: storage
+      type: data
+      subtype: spiffs
+      offset: '0xa74000'
+      offset_int: 10960896
+      size: '0x200000'
+      size_int: 2097152
+      size_human: 2MB
+      encrypted: false
+    provenance: probed
+    note: Parsed from the on-chip table at 0x8000. This is the ground truth for flash layout -- prefer
+      it over any assumed default.
+  partition_table_md5:
+    value: 7dbf49037137dceee06b57deba6ff41f
+    provenance: probed
+  applications:
+    value:
+    - secure_version: 0
+      app_version: 639d9cc
+      project_name: m5stack_tab5
+      build_time: '11:51:30'
+      build_date: Mar 25 2026
+      idf_version: v5.4.2
+      app_elf_sha256: dacde620e43bd3387b756968510ccf8cccffff8a9b9d4662857b136d7e44b5e3
+      partition: factory
+    provenance: probed
+    note: Decoded from esp_app_desc_t. project_name and idf_version tell you what firmware is on the board
+      and which SDK built it.
+  idf_target:
+    value: esp32p4
+    provenance: inferred
+    note: 'Derived from probed chip_family exactly. Target list baked-in list from ESP-IDF v6.0.3 ($IDF_PATH
+      not exported). Use: idf.py set-target esp32p4'
+board:
+  model:
+    value: M5Stack Tab5
+    provenance: inferred
+    note: |
+      Not read off a label. Two independent facts agree: the factory app read off
+      this chip calls itself project "m5stack_tab5" (probed), and M5Stack's spec
+      page lists an ESP32-P4 with 16MB flash, which is what the chip reports.
+      Inferred rather than vendor_doc because nothing ties this unit's MAC to the
+      product, only its firmware and specs. A photo of the case would settle it.
+  coprocessor:
+    value: ESP32-C6-MINI-1U, connected to the P4 over SDIO2
+    provenance: vendor_doc
+    source: https://docs.m5stack.com/en/core/Tab5
+    note: |
+      THIS DEVICE CONTAINS TWO MCUs AND ONLY ONE IS BACKED UP. The C6 handles
+      Wi-Fi 6 and Thread/Zigbee for the P4. It is wired to P4 pins G8-G15 over
+      SDIO and is not on the USB port, so it did not enumerate, has no profile of
+      its own and is not covered by backups/e8f60ae2fbcd/. The backup step is keyed
+      by eFuse MAC and cannot see it. This is the same shape as the Double Barrel
+      (see boards/489d31027e98.yaml sibling_board), recorded here up front.
+      Unlike the Double Barrel, the vendor publishes a recovery path for it: the
+      spec page links a "Tab5 Internal Wi-Fi Module Restore Factory Firmware"
+      guide. That guide was not read, so whether it needs anything beyond USB is
+      unknown.
+  firmware_running:
+    value: m5stack_tab5 639d9cc, IDF v5.4.2, built Mar 25 2026 (factory)
+    provenance: probed
+    note: |
+      Single 10MB "factory" app partition and no OTA slots, so any flash replaces
+      it outright. M5Stack publishes the factory image, its source, and a restore
+      tutorial on the spec page; the local backup taken 2026-10-16 is the
+      byte-exact copy of what this unit actually shipped with.
+pinmap: {}
+peripherals:
+  psram:
+    value: 32MB octal
+    provenance: vendor_doc
+    source: https://docs.m5stack.com/en/core/Tab5
+    note: |
+      From the spec page only. esptool did not report PSRAM for this chip, so the
+      identifier recorded nothing; that is a gap in what the probe reads on a P4,
+      not evidence the PSRAM is missing.
+  cpu_clock:
+    value: 400MHz per eFuse; vendor quotes 360MHz
+    provenance: probed
+    source: https://docs.m5stack.com/en/core/Tab5
+    note: |
+      Both are right about different things. The eFuse feature list gives what the
+      silicon is rated for; the spec page gives the speed M5Stack runs it at.
+research_queue:
+- field: coprocessor_backup
+  status: open
+  why: 'The ESP32-C6 co-processor has its own firmware and is not covered by this
+    board''s backup. It is not on USB, so the bench cannot read it directly.'
+  how: 'Read the "Tab5 Internal Wi-Fi Module Restore Factory Firmware" guide linked
+    from the M5Stack spec page. If the vendor image is published, that covers
+    recovery. A byte-exact backup would need a path to the C6 through the P4.'
+  danger: 'None for reading. Do not flash the C6 without first knowing how the
+    vendor restore works.'
+- field: display
+  status: unknown
+  why: Display controller, resolution, and bus pins are a board-level design choice; nothing on the SoC
+    records them.
+  how: Vendor schematic for the ESP32-P4 board carrying this display. Then check for an existing BSP component
+    -- search the ESP Component Registry (components.espressif.com) for the board name, and espressif/esp-bsp,
+    which already encodes panel type, offsets and pins for many vendor boards. Confirm the controller
+    part (ST7789 / ILI9341 / SSD1680 / GDEH...) before writing an esp_lcd driver.
+- field: pinmap
+  status: unknown
+  why: GPIO assignment is a PCB routing decision, invisible to probing.
+  how: Vendor schematic PDF first. Then a BSP component for this board (esp-bsp or the ESP Component Registry)
+    -- its bsp/*.h header is a machine-readable pin map and beats prose. Then IDF examples shipped by
+    the vendor. Mark every pin 'unverified' until a physical test confirms it.
+  danger: Driving a wrong pin can short a rail. Never mark verified without a hardware test.
+- field: power
+  status: unknown
+  why: Battery connector, charge IC, and ADC divider ratio are board-level.
+  how: Schematic. The divider ratio in particular is a magic number that cannot be guessed and silently
+    corrupts every battery reading.
+_diagnostics:
+  esptool_path: /Library/Frameworks/Python.framework/Versions/3.13/bin/esptool
+  esptool_version: 5.2.0
+  esptool_dialect: hyphenated (5.x)
+  workdir: /Users/jasonchurch/esp32-workbench/.scratch/ident-1792175294
+  flash_id_rc: 0
+  flash_id_output: 'esptool v5.2.0
+
+    Serial port /dev/cu.usbmodem1101:
+
+    Connecting...
+
+    Detecting chip type... ESP32-P4
+
+    Connected to ESP32-P4 on /dev/cu.usbmodem1101:
+
+    Chip type:          ESP32-P4 (revision v1.3)
+
+    Features:           Dual Core + LP Core, 400MHz
+
+    Crystal frequency:  40MHz
+
+    USB mode:           USB-Serial/JTAG
+
+    MAC:                e8:f6:0a:e2:fb:cd
+
+
+    Uploading stub flasher...
+
+    Running stub flasher...
+
+    Stub flasher running.
+
+
+    Flash Memory Information:
+
+    =========================
+
+    Manufacturer: 46
+
+    Device: 4018
+
+    Detected flash size: 16MB
+
+
+    Staying in bootloader.'
+  partition_rc: 0

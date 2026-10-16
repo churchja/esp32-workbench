@@ -153,8 +153,9 @@ what the tools actually recorded.
 | Seeed XIAO ESP32-S3 *(name inferred)* | `ESP32-S3` | `esp32s3` | 8MB | 8MB (AP_3v3) | `USB-Serial/JTAG` | 4 | **230400** | `dcb4d93b42ac` |
 | HoneyHoney Marauder Double Barrel — *2nd (Flipper-side) ESP32* | `ESP32-D0WD-V3` | `esp32` | 4MB | none | `CH340 bridge` | 5 | **230400** | `489d31027e98` |
 | ESP32-C6 devkit *(model not identified)* | `ESP32-C6FH4` | `esp32c6` | 4MB | none | `USB-Serial/JTAG` | 5 | **460800** | `e4b0634134d0` |
+| M5Stack Tab5 *(name from factory firmware)* | `ESP32-P4` | `esp32p4` | **16MB** | not probed *(32MB per vendor)* | `USB-Serial/JTAG` | 5 | **460800** | `e8f60ae2fbcd` |
 
-Backup and hash-verify: **all thirteen profiled boards**. `backups/` holds
+Backup and hash-verify: **all fourteen profiled boards**. `backups/` holds
 **thirteen** directories, and the mismatch is the point — see below. Restore:
 verified on the S3 devkit, both
 QT Pys, and the ESP8266, and performed on the LilyGo after its variant scan; the
@@ -267,7 +268,7 @@ The ladder is still the right design, but for the plainer reason: **no constant
 works.** 460800 makes S3 and ESP8266 backups *fail*; 115200 makes all three S2s
 four times slower than necessary. `esp32flash.py` negotiates rather than assumes.
 
-`n` is still small — thirteen boards, three interfaces. Treat the table as a
+`n` is still small — fourteen boards, three interfaces. Treat the table as a
 measured pattern, not a law. The CH340 row also acquired a wrinkle worth knowing:
 one physical board can expose **two connectors with different reset wiring**. On
 `489d31027e98` the micro-USB has full auto-reset while the USB-C has EN but not
@@ -291,8 +292,10 @@ pattern. Every S3 on that interface caps at 230400 (fails 460800). The first
 **ESP32-C6** — native USB-Serial/JTAG, the same peripheral family — backed up at
 **460800 on the first attempt**, no ladder discard (4MB in 14.9s). So the 230400
 ceiling was never a property of the USB-Serial/JTAG peripheral at large; it is
-specific to the S3. A C3 or C5 would now say whether 460800 is the C6's alone or
-holds across the newer RISC-V parts. The C6 also adds a radio the bench had not
+specific to the S3. The ESP32-P4 that
+followed (an M5Stack Tab5) did the same: 16MB at 460800 on the first attempt,
+71s. Two non-S3 parts on this interface, both at 460800, so the S3 is the
+outlier. A C3 or C5 would add a third. The C6 also adds a radio the bench had not
 seen: IEEE 802.15.4 (Thread/Zigbee), alongside Wi-Fi 6.
 
 **The bridge group got its second specimen, and it is the strongest kind.** Until
