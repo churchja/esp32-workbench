@@ -1173,12 +1173,16 @@ the repo had already answered the question.
 
 ### Not validated
 
-- **The EUI64 MAC path.** On C6/C5/H2, esptool prints three MAC lines and the
-  first is an 8-byte EUI64; an early parser truncated it into a wrong 6-byte
-  identity, and identity is the backup key. None of the ten boards here is a
-  C6, C5 or H2, so none prints one. Closing this needs one of those parts — it
-  is the only path in `esp32ident.py` that has never met the hardware it exists
-  for at all.
+- **The EUI64 MAC path on C5 and H2.** The path itself is validated: the first
+  C6 (`e4b0634134d0`, 2026-10-11) printed all three MAC lines (`MAC:
+  e4:b0:63:ff:fe:41:34:d0`, `BASE MAC`, `MAC_EXT: ff:fe`) and was keyed on its
+  BASE MAC, not on `e4b063fffe41`, the truncated EUI64 the early parser would
+  have produced. C5 and H2 print the same three lines through the same code, so
+  what is untested is only that those chips do it the same way.
+
+  This bullet said no C6 had been seen for seventeen days after one had. The C6
+  commit updated the speed paragraph that the board answered and missed this
+  one, the same drift as the bridge-chip note below.
 - **Bridge chips other than CH340.** The bridge path itself is validated — the
   CH340 board closed it, and is described above. But `esp32ident.py` also
   claims **CP210x** (`10c4:ea60/ea70/ea71`) and **FTDI**
@@ -1246,7 +1250,8 @@ emits `Chip type:`, `Crystal frequency:`, and on C6/C5/H2 **three** MAC lines
 where the first is an 8-byte EUI64. The old parser matched none of the first two
 and silently truncated the EUI64 into a wrong 6-byte identity — and identity is
 the backup key. Caught by reading esptool's source; it would otherwise have
-surfaced as a mystery on first contact.
+surfaced as a mystery on first contact. First contact came 2026-10-11 with a
+C6, and the fixed parser keyed it correctly.
 
 ### What is still not covered
 

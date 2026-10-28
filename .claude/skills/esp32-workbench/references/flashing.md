@@ -110,6 +110,33 @@ If a build fails instantly rather than after compiling, suspect this before
 suspecting the code — an instant failure is a board/framework mismatch, not a
 syntax error.
 
+### The two platforms ship different Arduino cores, and PWM changed between them
+
+The split above is also a major-version split in the Arduino core. Verified
+2026-10-28: official 6.13.0 installs `framework-arduinoespressif32`
+3.20017.241212, which is core **2.0.17**; the pioarduino release pinned above
+(55.03.311) declares core **3.3.11**. Arduino-ESP32 3.0 rewrote the LEDC (PWM)
+API, so a sketch that builds for an S3 env does not port to a C6 env unchanged.
+Signatures read from both installed headers and from 3.3.11 at its tag; the
+"on 3.x" column compiled against the Arduino IDE's core 3.3.4:
+
+| 2.0.17 (official platform) | 3.x (pioarduino) | Old code on 3.x |
+|---|---|---|
+| `ledcSetup(ch, freq, res)` + `ledcAttachPin(pin, ch)` | `ledcAttach(pin, freq, res)`, or `ledcAttachChannel(pin, freq, res, ch)` | build error: `'ledcSetup' was not declared in this scope` |
+| `ledcWrite(ch, duty)` | `ledcWrite(pin, duty)` | **compiles, then does nothing** |
+| `hallRead()` | removed | build error |
+
+The middle row is the trap. Fix the two build errors and leave
+`ledcWrite(0, duty)` alone, and the sketch builds clean. On 3.x that 0 is a pin
+number, pin 0 is not attached to LEDC, so `ledcWrite` returns `false` and the
+output stays dark. Nothing is logged at any debug level: neither `ledcWrite`
+nor the pin-ownership lookup it calls has a log line on that path (read in
+3.3.4; 3.3.11's body differs only in the full-duty clamp). The compiler error
+was the helpful part, and it stops exactly when the bug starts.
+
+Most ESP32 tutorials and books predate 3.0 and use the left column. Reading
+one, translate the PWM calls before building for a C5/C6/H2/P4.
+
 ## Frameworks
 
 - `framework = arduino` — default here. Widest library support, and the whole
