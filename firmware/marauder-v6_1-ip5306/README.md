@@ -71,6 +71,21 @@ core 3.3.4:
 Without them the link fails or the output differs materially from the shipped
 firmware.
 
+Make both edits in a separate Arduino data folder, NOT the Arduino IDE's own
+(~/Library/Arduino15 on macOS). On 2026-09-07 they were made in the IDE's
+folder, and every sketch the IDE built afterwards inherited them until its core
+was replaced on 2026-11-05. Two probe sketches showed what that does:
+
+                        patched 3.3.4                     stock 3.3.12
+    try/catch           "exception handling disabled"     builds
+    int defined twice   links silently, keeps one value   "multiple definition"
+
+arduino-cli takes its data folder from ARDUINO_DIRECTORIES_DATA. Point it at an
+empty folder before installing the core, so the install and both edits land
+there, and check that `arduino-cli core list` shows 3.3.4 in the same terminal
+before compiling. The variable does not carry over to a new terminal, and a
+build without it uses the IDE's core, unedited. `unset` it when done.
+
 ## What the patch actually does, which is NOT what was first assumed
 
 It selects IP5306 INSTEAD OF MAX17048, not in addition. configs.h ~line 2931 has
